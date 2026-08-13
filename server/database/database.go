@@ -57,6 +57,7 @@ func Init(path string) error {
 		&model.TaskLog{},
 		&model.TokenBlock{},
 		&model.LoginAttempt{},
+		&model.AuditLog{},
 	); err != nil {
 		return err
 	}

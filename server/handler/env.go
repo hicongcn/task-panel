@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"strconv"
 
 	"taskpanel/middleware"
+	"taskpanel/model"
 	"taskpanel/pkg/response"
 	"taskpanel/service"
 
@@ -48,6 +50,7 @@ func (h *EnvHandler) Create(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionEnvCreate, fmt.Sprintf("env:%d", env.ID), env.Name)
 	response.Created(c, gin.H{"data": service.GinEnvDict(*env, true)})
 }
 
@@ -69,6 +72,7 @@ func (h *EnvHandler) Update(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionEnvUpdate, fmt.Sprintf("env:%d", id), env.Name)
 	response.Success(c, gin.H{"data": service.GinEnvDict(*env, true)})
 }
 
@@ -78,6 +82,7 @@ func (h *EnvHandler) Delete(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionEnvDelete, fmt.Sprintf("env:%d", id), "")
 	response.Success(c, gin.H{"message": "删除成功"})
 }
 
@@ -94,6 +99,7 @@ func (h *EnvHandler) BatchDelete(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionEnvBatchDel, fmt.Sprintf("envs:%v", req.IDs), "")
 	response.Success(c, gin.H{"message": "已删除", "count": n})
 }
 

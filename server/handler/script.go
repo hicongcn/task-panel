@@ -10,6 +10,7 @@ import (
 
 	"taskpanel/config"
 	"taskpanel/middleware"
+	"taskpanel/model"
 	"taskpanel/pkg/pathutil"
 	"taskpanel/pkg/response"
 	"taskpanel/service"
@@ -130,6 +131,7 @@ func (h *ScriptHandler) Save(c *gin.Context) {
 		response.InternalError(c, "保存失败")
 		return
 	}
+	recordAudit(c, model.AuditActionScriptSave, req.Path, "")
 	response.Success(c, gin.H{"message": "保存成功"})
 }
 
@@ -151,6 +153,7 @@ func (h *ScriptHandler) CreateDir(c *gin.Context) {
 		response.InternalError(c, "创建目录失败")
 		return
 	}
+	recordAudit(c, model.AuditActionScriptCreate, req.Path, "")
 	response.Created(c, gin.H{"message": "已创建"})
 }
 
@@ -166,6 +169,7 @@ func (h *ScriptHandler) Delete(c *gin.Context) {
 		response.InternalError(c, "删除失败")
 		return
 	}
+	recordAudit(c, model.AuditActionScriptDelete, rel, "")
 	response.Success(c, gin.H{"message": "已删除"})
 }
 
@@ -197,6 +201,7 @@ func (h *ScriptHandler) Rename(c *gin.Context) {
 		response.InternalError(c, "重命名失败")
 		return
 	}
+	recordAudit(c, model.AuditActionScriptRename, req.OldPath+" -> "+req.NewName, "")
 	response.Success(c, gin.H{"message": "已重命名"})
 }
 
@@ -235,6 +240,7 @@ func (h *ScriptHandler) Upload(c *gin.Context) {
 		response.InternalError(c, "保存失败")
 		return
 	}
+	recordAudit(c, model.AuditActionScriptUpload, name, "")
 	response.Created(c, gin.H{"message": "上传成功", "path": relFromScripts(full)})
 }
 
@@ -270,6 +276,7 @@ func (h *ScriptHandler) Run(c *gin.Context) {
 	}
 	env := service.NewEnvService().BuildTaskEnv()
 	result := service.RunScriptDebug(plan, env, 60*time.Second)
+	recordAudit(c, model.AuditActionScriptRun, req.Path, "")
 	response.Success(c, gin.H{"data": gin.H{
 		"output": result.Output, "exit_code": result.ExitCode,
 		"duration": result.Duration, "timed_out": result.TimedOut,
@@ -305,6 +312,7 @@ func (h *ScriptHandler) RunCode(c *gin.Context) {
 	}
 	env := service.NewEnvService().BuildTaskEnv()
 	result := service.RunScriptDebug(plan, env, 60*time.Second)
+	recordAudit(c, model.AuditActionScriptCode, req.Language, "")
 	response.Success(c, gin.H{"data": gin.H{
 		"output": result.Output, "exit_code": result.ExitCode,
 		"duration": result.Duration, "timed_out": result.TimedOut,

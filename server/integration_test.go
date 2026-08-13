@@ -549,6 +549,68 @@ func TestLiveTicket(t *testing.T) {
 	}
 }
 
+// ---------- 审计日志 ----------
+
+func TestAuditLogs(t *testing.T) {
+	token := getToken(t) // 触发 login_success 审计
+
+	// 保存脚本 + 创建任务,触发 script_save / task_create 审计
+	w := doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "audit_test.sh", "content": "#!/bin/bash\necho hi\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "审计测试", "command": "audit_test.sh", "cron_expression": "0 3 * * *", "enabled": false,
+	})
+	assertCode(t, w, 201, 0, "create task")
+
+	// 查询审计日志
+	w = doRequest(t, "GET", "/api/v1/audit-logs?page=1&page_size=50", token, nil)
+	assertCode(t, w, 200, 0, "list audit logs")
+	var list struct {
+		Data  []map[string]interface{} `json:"data"`
+		Total int64                    `json:"total"`
+	}
+	if err := json.Unmarshal(decodeResp(t, w).Data, &list); err != nil {
+		t.Fatalf("decode audit list: %v", err)
+	}
+	if list.Total == 0 {
+		t.Fatal("expected audit logs")
+	}
+
+	// 校验包含 task_create,并取出任务 id 用于清理
+	var taskID uint
+	foundCreate := false
+	for _, l := range list.Data {
+		if l["action"] == "task_create" {
+			foundCreate = true
+			if r, ok := l["resource"].(string); ok {
+				fmt.Sscanf(r, "task:%d", &taskID)
+			}
+		}
+	}
+	if !foundCreate {
+		t.Fatalf("expected task_create audit log, got %+v", list.Data)
+	}
+
+	// 按动作过滤
+	w = doRequest(t, "GET", "/api/v1/audit-logs?action=script_save", token, nil)
+	assertCode(t, w, 200, 0, "filter by action")
+	var filtered struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &filtered)
+	if len(filtered.Data) == 0 {
+		t.Fatal("expected script_save audit log")
+	}
+
+	// 清理
+	if taskID > 0 {
+		_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
+	}
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=audit_test.sh", token, nil)
+}
+
 // ---------- 助手 ----------
 
 var (

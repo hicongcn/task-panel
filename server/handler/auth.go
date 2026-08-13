@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"taskpanel/middleware"
+	"taskpanel/model"
 	"taskpanel/pkg/response"
 	"taskpanel/service"
 
@@ -42,6 +43,7 @@ func (h *AuthHandler) Init(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	service.NewAuditService().Record(req.Username, model.AuditActionInitAdmin, "auth", "初始化管理员", middleware.ResolveClientIP(c))
 	response.Created(c, gin.H{"message": "初始化成功", "user": gin.H{
 		"id": user.ID, "username": user.Username,
 	}})
@@ -61,6 +63,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	ip := middleware.ResolveClientIP(c)
 	result, err := h.svc.Login(req.Username, req.Password, ip)
 	if err != nil {
+		service.NewAuditService().Record(req.Username, model.AuditActionLoginFailed, "auth", "", ip)
 		switch err {
 		case service.ErrAccountLocked:
 			response.TooManyRequests(c, err.Error())
@@ -73,6 +76,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		return
 	}
+	service.NewAuditService().Record(result.Username, model.AuditActionLoginSuccess, "auth", "", ip)
 
 	response.Success(c, gin.H{
 		"message":     "登录成功",
@@ -88,6 +92,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	if jti != nil {
 		middleware.BlockToken(jti.(string))
 	}
+	recordAudit(c, model.AuditActionLogout, "auth", "")
 	response.Success(c, gin.H{"message": "已退出登录"})
 }
 

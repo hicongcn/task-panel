@@ -98,3 +98,43 @@ type LoginAttempt struct {
 	ExpiresAt time.Time  `json:"expires_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 }
+
+// AuditLog 审计日志(记录关键操作留痕)。
+type AuditLog struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Username  string    `gorm:"size:64;index" json:"username"`
+	Action    string    `gorm:"size:32;index" json:"action"`
+	Resource  string    `gorm:"size:255" json:"resource"`
+	Detail    string    `gorm:"type:text" json:"detail"`
+	IP        string    `gorm:"size:64" json:"ip"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// AuditAction 常量。
+const (
+	AuditActionInitAdmin   = "init_admin"
+	AuditActionLoginSuccess = "login_success"
+	AuditActionLoginFailed  = "login_failed"
+	AuditActionLogout       = "logout"
+
+	AuditActionTaskCreate  = "task_create"
+	AuditActionTaskUpdate  = "task_update"
+	AuditActionTaskDelete  = "task_delete"
+	AuditActionTaskRun     = "task_run"
+	AuditActionTaskStop    = "task_stop"
+	AuditActionTaskEnable  = "task_enable"
+	AuditActionTaskDisable = "task_disable"
+
+	AuditActionScriptSave   = "script_save"
+	AuditActionScriptCreate = "script_create_dir"
+	AuditActionScriptDelete = "script_delete"
+	AuditActionScriptRename = "script_rename"
+	AuditActionScriptUpload = "script_upload"
+	AuditActionScriptRun    = "script_run"
+	AuditActionScriptCode   = "script_run_code"
+
+	AuditActionEnvCreate     = "env_create"
+	AuditActionEnvUpdate     = "env_update"
+	AuditActionEnvDelete     = "env_delete"
+	AuditActionEnvBatchDel   = "env_batch_delete"
+)

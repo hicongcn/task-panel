@@ -44,14 +44,18 @@ func (e *Executor) ManualStop(taskID uint) bool {
 	if !ok {
 		return false
 	}
+	// 在锁内拷贝 cancel/process,避免与 registerProcess 的并发写产生数据竞争;
+	// 拷贝后在锁外执行 kill,不持有锁做系统调用。
 	h.mu.Lock()
 	h.stopped = true
+	cancel := h.cancel
+	process := h.process
 	h.mu.Unlock()
-	if h.cancel != nil {
-		h.cancel()
+	if cancel != nil {
+		cancel()
 	}
-	if h.process != nil {
-		killProcessGroup(h.process)
+	if process != nil {
+		killProcessGroup(process)
 	}
 	return true
 }
@@ -275,7 +279,13 @@ func (e *Executor) registerProcess(taskID uint, p *os.Process, ctx context.Cance
 		h.mu.Lock()
 		h.process = p
 		h.cancel = ctx
+		stopped := h.stopped
 		h.mu.Unlock()
+		if stopped {
+			// 注册前已被手动停止(启动窗口内的停止),立即终止本次执行。
+			ctx()
+			killProcessGroup(p)
+		}
 	}
 }
 

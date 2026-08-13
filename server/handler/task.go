@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"strconv"
 
 	"taskpanel/middleware"
+	"taskpanel/model"
 	"taskpanel/pkg/response"
 	"taskpanel/service"
 
@@ -57,6 +59,7 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionTaskCreate, fmt.Sprintf("task:%d", task.ID), task.Name)
 	response.Created(c, gin.H{"data": task})
 }
 
@@ -100,6 +103,7 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionTaskUpdate, fmt.Sprintf("task:%d", task.ID), task.Name)
 	response.Success(c, gin.H{"data": task})
 }
 
@@ -109,6 +113,7 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionTaskDelete, fmt.Sprintf("task:%d", id), "")
 	response.Success(c, gin.H{"message": "删除成功"})
 }
 
@@ -127,6 +132,11 @@ func (h *TaskHandler) toggle(c *gin.Context, enable bool) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	action := model.AuditActionTaskDisable
+	if enable {
+		action = model.AuditActionTaskEnable
+	}
+	recordAudit(c, action, fmt.Sprintf("task:%d", id), task.Name)
 	response.Success(c, gin.H{"message": "已更新", "data": task})
 }
 
@@ -136,6 +146,7 @@ func (h *TaskHandler) Run(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionTaskRun, fmt.Sprintf("task:%d", id), "")
 	response.Success(c, gin.H{"message": "任务已启动"})
 }
 
@@ -145,6 +156,7 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	recordAudit(c, model.AuditActionTaskStop, fmt.Sprintf("task:%d", id), "")
 	response.Success(c, gin.H{"message": "任务已停止"})
 }
 
