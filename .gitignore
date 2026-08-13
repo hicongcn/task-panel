@@ -1,0 +1,15 @@
+# 后端
+server/taskpanel-server
+server/data/
+server/*.log
+
+# Docker 数据卷(docker-compose 挂载 ./data)
+/data/
+
+# 前端
+web/node_modules/
+web/dist/
+
+# 通用
+.DS_Store
+*.log

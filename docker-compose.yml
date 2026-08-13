@@ -1,0 +1,14 @@
+services:
+  task-panel:
+    build: .
+    image: task-panel:latest
+    container_name: task-panel
+    restart: unless-stopped
+    ports:
+      - "5700:5700"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      # 可选:公网/反代域名访问时把 origin 加入 CORS 白名单
+      # - CORS_ORIGINS=https://panel.your-domain.com

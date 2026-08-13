@@ -1,0 +1,24 @@
+# task-panel 配置文件
+# 相对路径以本文件所在目录为基准解析
+
+server:
+  port: 5700
+  mode: release          # release / debug
+  web_dir: ./web         # 前端静态资源目录;留空则不托管(由 nginx 反代)
+
+database:
+  path: ./data/taskpanel.db
+
+jwt:
+  secret: ""             # 留空则自动生成并持久化到 data/.jwt_secret
+  token_expire_h: 72     # 访问令牌有效期(小时)
+
+data:
+  dir: ./data
+  scripts_dir: ./data/scripts
+  log_dir: ./data/logs
+
+cors:
+  origins:
+    - http://localhost:5173
+    - http://localhost:5700
