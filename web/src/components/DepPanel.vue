@@ -13,8 +13,8 @@
     </div>
 
     <el-table :data="pkgs" v-loading="loading" border stripe max-height="440">
-      <el-table-column prop="name" label="包名" show-overflow-tooltip />
-      <el-table-column prop="version" label="版本" show-overflow-tooltip />
+      <el-table-column prop="name" label="包名" width="160" show-overflow-tooltip />
+      <el-table-column prop="version" label="版本" width="90" show-overflow-tooltip />
       <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="danger" :loading="busy === row.name" @click="onUninstall(row)">卸载</el-button>

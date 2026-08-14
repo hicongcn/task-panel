@@ -32,11 +32,11 @@
     </div>
 
     <el-table :data="backups" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="备份文件" show-overflow-tooltip />
-      <el-table-column label="大小">
+      <el-table-column prop="name" label="备份文件" width="160" show-overflow-tooltip />
+      <el-table-column label="大小" width="80">
         <template #default="{ row }">{{ formatSize(row.size) }}</template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" show-overflow-tooltip />
+      <el-table-column prop="created_at" label="创建时间" width="140" show-overflow-tooltip />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="onDownload(row)">下载</el-button>

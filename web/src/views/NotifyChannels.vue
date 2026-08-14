@@ -5,16 +5,16 @@
     </div>
 
     <el-table :data="channels" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" show-overflow-tooltip />
-      <el-table-column label="类型">
+      <el-table-column prop="name" label="名称" width="100" show-overflow-tooltip />
+      <el-table-column label="类型" width="80">
         <template #default="{ row }">{{ notifyTypeLabel(row.type) }}</template>
       </el-table-column>
-      <el-table-column label="启用">
+      <el-table-column label="启用" width="65">
         <template #default="{ row }">
           <el-switch :model-value="row.enabled" @change="(v: boolean) => onToggle(row, v)" />
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" show-overflow-tooltip />
+      <el-table-column prop="created_at" label="创建时间" width="140" show-overflow-tooltip />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>

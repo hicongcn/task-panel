@@ -10,7 +10,7 @@
       <el-table-column width="36" align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
-      <el-table-column label="名称">
+      <el-table-column label="名称" width="90">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.name }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>
@@ -22,11 +22,11 @@
           <el-button link size="small" class="copy-btn" @click="copy(row.value)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" show-overflow-tooltip />
+      <el-table-column prop="remark" label="备注" width="100" show-overflow-tooltip />
       <el-table-column label="更新时间" show-overflow-tooltip>
         <template #default="{ row }">{{ fmtTime(row.updated_at) }}</template>
       </el-table-column>
-      <el-table-column label="启用">
+      <el-table-column label="启用" width="65">
         <template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag></template>
       </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
