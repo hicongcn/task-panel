@@ -37,7 +37,7 @@ func Describe(expr string) string {
 	return describeSimple(expr)
 }
 
-// describeSimple 只覆盖常见简单形式,复杂表达式原话返回。
+// describeSimple 覆盖常见简单形式,复杂表达式原话返回。
 func describeSimple(expr string) string {
 	fields := strings.Fields(expr)
 
@@ -60,8 +60,10 @@ func describeSimple(expr string) string {
 	}
 
 	offset := 0
+	sec := "*"
 	if len(fields) == 6 {
-		offset = 1 // 带秒字段
+		offset = 1
+		sec = fields[0] // 带秒字段
 	} else if len(fields) != 5 {
 		return expr
 	}
@@ -72,24 +74,83 @@ func describeSimple(expr string) string {
 	month := fields[offset+3]
 	dow := fields[offset+4]
 
-	if dom == "*" && month == "*" && dow == "*" {
+	allStar := dom == "*" && month == "*" && dow == "*"
+
+	// 秒级:每秒 / 每 N 秒(6 段表达式)
+	if offset == 1 && minute == "*" && allStar {
 		switch {
-		case minute == "*" && hour == "*", minute == "*/1":
-			return "每分钟执行"
-		case minute == "0" && hour == "*":
-			return "每小时整点执行"
+		case sec == "*":
+			return "每秒执行"
+		case isStep(sec):
+			n := stepNum(sec)
+			if n == 1 {
+				return "每秒执行"
+			}
+			return fmt.Sprintf("每 %d 秒执行", n)
 		}
 	}
-	if isSingle(minute) && isSingle(hour) && dom == "*" && month == "*" && dow == "*" {
+	// 每分钟(分钟、小时均为 *)
+	if minute == "*" && hour == "*" && allStar {
+		return "每分钟执行"
+	}
+	// 每小时整点(分钟 0,小时任意)
+	if minute == "0" && hour == "*" && allStar {
+		return "每小时整点执行"
+	}
+	// 分钟级:每 N 分钟(如 */5 * * * *)
+	if isStep(minute) && hour == "*" && allStar {
+		n := stepNum(minute)
+		if n == 1 {
+			return "每分钟执行"
+		}
+		return fmt.Sprintf("每 %d 分钟执行", n)
+	}
+	// 小时级:每 N 小时(如 0 */2 * * *)
+	if minute == "0" && isStep(hour) && allStar {
+		n := stepNum(hour)
+		if n == 1 {
+			return "每小时整点执行"
+		}
+		return fmt.Sprintf("每 %d 小时执行", n)
+	}
+	// 每天 HH:MM
+	if isSingle(minute) && isSingle(hour) && allStar {
 		m, _ := strconv.Atoi(minute)
 		h, _ := strconv.Atoi(hour)
 		return fmt.Sprintf("每天 %02d:%02d 执行", h, m)
 	}
-	if isSingle(minute) && hour == "*" && dom == "*" && month == "*" && dow == "*" {
+	// 每周几 HH:MM(如 0 8 * * 1)
+	if isSingle(minute) && isSingle(hour) && dom == "*" && month == "*" && isSingle(dow) {
+		m, _ := strconv.Atoi(minute)
+		h, _ := strconv.Atoi(hour)
+		d, _ := strconv.Atoi(dow)
+		return fmt.Sprintf("每周%s %02d:%02d 执行", weekdayCN(d), h, m)
+	}
+	// 每月几号 HH:MM(如 0 8 1 * *)
+	if isSingle(minute) && isSingle(hour) && isSingle(dom) && month == "*" && dow == "*" {
+		m, _ := strconv.Atoi(minute)
+		h, _ := strconv.Atoi(hour)
+		d, _ := strconv.Atoi(dom)
+		return fmt.Sprintf("每月 %d 日 %02d:%02d 执行", d, h, m)
+	}
+	// 每小时的第 N 分钟
+	if isSingle(minute) && hour == "*" && allStar {
 		m, _ := strconv.Atoi(minute)
 		return fmt.Sprintf("每小时的第 %d 分钟执行", m)
 	}
 	return expr
+}
+
+// weekdayCN 数字星期(0=周日,7=周日)转中文。
+func weekdayCN(d int) string {
+	names := []string{"日", "一", "二", "三", "四", "五", "六"}
+	if d < 0 || d > 7 {
+		return fmt.Sprintf("%d", d)
+	}
+	if d == 7 {
+		d = 0
+	}
+	return names[d]
 }
 
 func isSingle(value string) bool {
@@ -98,4 +159,18 @@ func isSingle(value string) bool {
 	}
 	_, err := strconv.Atoi(value)
 	return err == nil
+}
+
+// isStep 判断是否为 */N 形式。
+func isStep(value string) bool {
+	if !strings.HasPrefix(value, "*/") {
+		return false
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(value, "*/"))
+	return err == nil && n > 0
+}
+
+func stepNum(value string) int {
+	n, _ := strconv.Atoi(strings.TrimPrefix(value, "*/"))
+	return n
 }

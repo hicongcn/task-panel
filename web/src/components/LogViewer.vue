@@ -1,6 +1,6 @@
 <template>
   <div class="log-surface" ref="box">
-    <span v-for="(line, i) in htmlLines" :key="i" v-html="line"></span>
+    <div v-for="(line, i) in htmlLines" :key="i" class="log-line" v-html="line"></div>
   </div>
 </template>
 
@@ -18,8 +18,13 @@ let retryCount = 0
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 const MAX_RETRIES = 12
 
-function append(line: string) {
-  htmlLines.value.push(ansiToHtml(line))
+// append 接收 SSE 的 data 块,按换行拆成多行渲染(避免多行内容挤在一行)。
+function append(chunk: string) {
+  const parts = String(chunk).split('\n')
+  for (const p of parts) {
+    if (p === '') continue
+    htmlLines.value.push(ansiToHtml(p))
+  }
   if (htmlLines.value.length > 5000) htmlLines.value.splice(0, htmlLines.value.length - 5000)
   if (props.autoScroll !== false) {
     nextTick(() => {
@@ -71,3 +76,7 @@ onUnmounted(disconnect)
 
 defineExpose({ connect, disconnect })
 </script>
+
+<style scoped>
+.log-line { min-height: 1.35em; }
+</style>

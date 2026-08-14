@@ -23,9 +23,8 @@
 
     <el-table :data="tasks" v-loading="loading" border stripe @selection-change="onSelection">
       <el-table-column type="selection" width="45" />
-      <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="name" label="名称" min-width="120" />
-      <el-table-column prop="command" label="命令" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="command" label="脚本" min-width="160" show-overflow-tooltip />
       <el-table-column prop="cron_expression" label="Cron" width="140" />
       <el-table-column label="标签" min-width="130">
         <template #default="{ row }">
@@ -38,15 +37,12 @@
           <el-tag v-if="row.status === 'running'" type="warning" size="small" style="margin-left:4px">运行中</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="上次结果" width="90">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
-          <el-tag :type="statusType(row.last_run_status)" size="small">{{ statusText(row.last_run_status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="runTask(row)" :disabled="row.status === 'running'">运行</el-button>
-          <el-button size="small" @click="stopTask(row)" :disabled="row.status !== 'running'">停止</el-button>
+          <el-button size="small" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
+            {{ row.status === 'running' ? '停止' : '运行' }}
+          </el-button>
+          <el-button size="small" @click="viewLog(row)">日志</el-button>
           <el-button size="small" @click="toggle(row)">{{ row.enabled ? '禁用' : '启用' }}</el-button>
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
@@ -60,9 +56,12 @@
 
     <el-dialog v-model="formDialog.visible" :title="formDialog.id ? '编辑任务' : '新建任务'" width="560px">
       <el-form label-width="110px">
-        <el-form-item label="名称"><el-input v-model="formDialog.form.name" /></el-form-item>
+        <el-form-item label="名称"><el-input v-model="formDialog.form.name" placeholder="留空则使用脚本文件名" /></el-form-item>
         <el-form-item label="命令">
-          <el-input v-model="formDialog.form.command" placeholder="例:python3 mytask.py 或 mytask.py" />
+          <el-select v-model="formDialog.form.command" filterable allow-create default-first-option placeholder="选择或输入脚本,如 hello.sh 或 sub/hello.sh(免解释器前缀)" style="width:100%">
+            <el-option v-for="f in scriptFiles" :key="f" :label="f" :value="f" />
+          </el-select>
+          <div class="tip">直接选脚本或输入文件名即可,无需 node / python3 前缀;支持带参数,如 hello.sh --force</div>
         </el-form-item>
         <el-form-item label="Cron">
           <el-input v-model="formDialog.form.cron_expression" placeholder="*/10 * * * *">
@@ -93,6 +92,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api/task'
+import { scriptApi } from '@/api/script'
 import LogViewer from '@/components/LogViewer.vue'
 
 const tasks = ref<Task[]>([])
@@ -109,6 +109,23 @@ const formDialog = reactive({
   form: { name: '', command: '', cron_expression: '', enabled: true, timeout_seconds: 0, max_retries: 0, retry_interval: 0, tags: [] as string[] },
 })
 const cronDesc = ref('')
+const scriptFiles = ref<string[]>([])
+
+// 加载脚本文件列表(展平树,供命令下拉选择)
+async function loadScriptFiles() {
+  try {
+    const res: any = await scriptApi.tree()
+    const walk = (nodes: any[]): string[] => {
+      const out: string[] = []
+      for (const n of nodes || []) {
+        if (n.type === 'file') out.push(n.key)
+        if (n.children?.length) out.push(...walk(n.children))
+      }
+      return out
+    }
+    scriptFiles.value = walk(res.data.data || [])
+  } catch {}
+}
 
 async function load() {
   loading.value = true
@@ -119,7 +136,7 @@ async function load() {
     tagStats.value = tags.data.data || {}
   } catch {} finally { loading.value = false }
 }
-onMounted(load)
+onMounted(() => { load(); loadScriptFiles() })
 
 function filterByTag(t: string) {
   tag.value = t
@@ -169,6 +186,11 @@ async function describe() {
 }
 
 async function save() {
+  // 名称留空时默认取命令的脚本文件名
+  if (!formDialog.form.name.trim() && formDialog.form.command.trim()) {
+    const first = formDialog.form.command.trim().split(/\s+/)[0] || ''
+    formDialog.form.name = first.split('/').pop() || ''
+  }
   formDialog.loading = true
   try {
     if (formDialog.id) await taskApi.update(formDialog.id, formDialog.form)
@@ -179,6 +201,12 @@ async function save() {
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '保存失败')
   } finally { formDialog.loading = false }
+}
+
+// viewLog 查看最近一条日志(正在运行的显示实时流)。
+function viewLog(row: Task) {
+  liveDrawer.taskId = row.id
+  liveDrawer.visible = true
 }
 
 async function runTask(row: Task) {
@@ -203,16 +231,11 @@ async function remove(row: Task) {
   } catch {}
 }
 
-function statusType(s: string) {
-  return { success: 'success', failed: 'danger', aborted: 'warning', none: 'info' }[s] || 'info'
-}
-function statusText(s: string) {
-  return { success: '成功', failed: '失败', aborted: '终止', none: '—' }[s] || s
-}
 </script>
 
 <style scoped>
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
 .cron-desc { color: #909399; font-size: 12px; margin-top: 4px; }
 .tag { margin-right: 4px; cursor: pointer; }
+.tip { color: #909399; font-size: 12px; margin-top: 4px; line-height: 1.5; }
 </style>

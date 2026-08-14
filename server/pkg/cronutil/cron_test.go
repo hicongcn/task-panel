@@ -40,3 +40,22 @@ func TestDescribe(t *testing.T) {
 		}
 	}
 }
+
+func TestDescribeEnhanced(t *testing.T) {
+	cases := map[string]string{
+		"*/5 * * * *":    "每 5 分钟执行",
+		"*/10 * * * * *": "每 10 秒执行",
+		"* * * * * *":    "每秒执行",
+		"0 */2 * * *":    "每 2 小时执行",
+		"0 * * * *":      "每小时整点执行",
+		"30 8 * * *":     "每天 08:30 执行",
+		"0 8 * * 1":      "每周一 08:00 执行",
+		"0 8 1 * *":      "每月 1 日 08:00 执行",
+		"15 * * * *":     "每小时的第 15 分钟执行",
+	}
+	for expr, want := range cases {
+		if got := Describe(expr); got != want {
+			t.Errorf("Describe(%q) = %q, want %q", expr, got, want)
+		}
+	}
+}
