@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -72,13 +73,14 @@ func TestSendBark(t *testing.T) {
 	}
 }
 
-func TestBuildTaskResultMessage(t *testing.T) {
-	title, content := buildTaskResultMessage("每日备份", "success", 12.5)
+// TestDefaultTemplate 默认模板渲染(buildTaskResultMessage 依赖 DB 设置,改测纯函数)。
+func TestDefaultTemplate(t *testing.T) {
+	title, content := renderNotifyTemplate(defaultNotifyTemplate("success"), "每日备份", "成功", 12.5)
 	if title != "任务执行成功" {
 		t.Fatalf("title 不符: %s", title)
 	}
-	if content == "" {
-		t.Fatal("content 为空")
+	if content == "" || !strings.Contains(content, "每日备份") {
+		t.Fatalf("content 不符: %s", content)
 	}
 }
 
