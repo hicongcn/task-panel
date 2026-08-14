@@ -59,9 +59,9 @@ onMounted(() => {
     cursorSmoothCaretAnimation: 'on',           // 光标平滑移动
     padding: { top: 8, bottom: 8 },             // 编辑区上下留白
     contextmenu: true,                          // 右键菜单
-    quickSuggestions: false,                    // 基础语言无补全,避免弹窗噪音
-    suggestOnTriggerCharacters: false,
-    wordBasedSuggestions: 'off',
+    quickSuggestions: true,                     // 输入时弹出补全提示
+    suggestOnTriggerCharacters: true,           // 触发字符(. 等)后自动弹出
+    wordBasedSuggestions: 'currentDocument',    // 基于文档单词的补全
   })
   editor.onDidChangeModelContent(() => {
     if (applyingExternal || !editor) return

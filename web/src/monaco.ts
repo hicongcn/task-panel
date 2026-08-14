@@ -10,9 +10,15 @@ import * as monaco from 'monaco-editor/editor/editor.api'
 // 用根入口做类型来源(运行时被擦除,不进 bundle);editor.api 子路径无独立类型声明。
 import type * as monacoTypes from 'monaco-editor'
 import editorWorker from 'monaco-editor/editor/editor.worker?worker'
+import tsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
+import jsonWorker from 'monaco-editor/language/json/json.worker?worker'
 
 ;(self as any).MonacoEnvironment = {
-  getWorker: () => new editorWorker(),
+  getWorker: (_id: string, label: string) => {
+    if (label === 'typescript' || label === 'javascript') return new tsWorker()
+    if (label === 'json') return new jsonWorker()
+    return new editorWorker()
+  },
 }
 
 // 编辑器功能(features):查找/替换、注释、多光标、代码折叠、右键菜单等
@@ -81,19 +87,13 @@ import 'monaco-editor/editor/contrib/gotoError/browser/markerSelectionStatus.js'
 import 'monaco-editor/editor/contrib/suggest/browser/suggestController.js'
 import 'monaco-editor/editor/common/standaloneStrings.js'
 
-// 常用语言(语法高亮)
-import 'monaco-editor/languages/definitions/javascript/register'
-import 'monaco-editor/languages/definitions/python/register'
-import 'monaco-editor/languages/definitions/shell/register'
-import 'monaco-editor/languages/definitions/go/register'
-import 'monaco-editor/languages/definitions/yaml/register'
-import 'monaco-editor/languages/definitions/markdown/register'
-import 'monaco-editor/languages/definitions/xml/register'
-import 'monaco-editor/languages/definitions/dockerfile/register'
-import 'monaco-editor/languages/definitions/html/register'
-import 'monaco-editor/languages/definitions/css/register'
-// typescript 会引入 tsMode/lspLanguageFeatures(数百 KB),脚本管理场景暂不引入。
-// json 为独立语言服务(需 worker),MVP 不引入;monaco 核心提供基础高亮。
+// 语言服务(代码补全):JS/TS 与 JSON
+import 'monaco-editor/language/typescript/monaco.contribution'
+import 'monaco-editor/language/json/monaco.contribution'
+
+// 全部基础语言(语法高亮):javascript/python/shell/go/yaml/markdown/xml/dockerfile/
+// html/css/java/c/cpp/csharp/rust/php/ruby/lua/sql/powershell/perl/swift/kotlin/ini/bat/r 等
+import 'monaco-editor/basic-languages/monaco.contribution' 
 
 // languageForPath 根据脚本文件名推断 Monaco 语言 id。
 export function languageForPath(path: string): string {
@@ -101,6 +101,8 @@ export function languageForPath(path: string): string {
   const ext = name.includes('.') ? (name.split('.').pop() || '') : ''
   const map: Record<string, string> = {
     js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', mts: 'typescript', cts: 'typescript',
+    json: 'json',
     py: 'python',
     sh: 'shell', bash: 'shell', zsh: 'shell',
     go: 'go',
@@ -110,6 +112,21 @@ export function languageForPath(path: string): string {
     dockerfile: 'dockerfile',
     html: 'html', htm: 'html',
     css: 'css',
+    java: 'java',
+    c: 'cpp', h: 'cpp', hpp: 'cpp', cpp: 'cpp', cc: 'cpp', cxx: 'cpp',
+    cs: 'csharp',
+    rs: 'rust',
+    php: 'php',
+    rb: 'ruby',
+    lua: 'lua',
+    sql: 'sql',
+    ps1: 'powershell',
+    pl: 'perl', pm: 'perl',
+    swift: 'swift',
+    kt: 'kotlin',
+    ini: 'ini', toml: 'ini', conf: 'ini',
+    bat: 'bat', cmd: 'bat',
+    r: 'r',
   }
   if (name === 'dockerfile') return 'dockerfile'
   return map[ext] || 'plaintext'
