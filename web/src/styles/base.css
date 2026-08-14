@@ -64,3 +64,6 @@ html, body, #app {
 
 /* 表格固定操作列按钮不换行(保持一行展示) */
 .el-table .el-table__fixed-right .cell { white-space: nowrap !important; }
+
+/* 表格宽度贴合内容:列宽由内容决定(内容多列宽,内容少列窄),不再均分拉伸 */
+.el-table { width: max-content !important; max-width: 100%; }
