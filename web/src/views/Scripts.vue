@@ -106,22 +106,34 @@ async function refreshTree() {
 }
 refreshTree()
 
-// onNodeDrop 拖拽节点移动:仅支持把文件/目录拖入目录(inner)。
-async function onNodeDrop(dragging: any, drop: any, dropType: string) {
-  if (dropType !== 'inner') {
-    ElMessage.warning('请把文件拖入目标目录内')
+// onNodeDrop 拖拽移动:拖到文件夹(任意落点)视为移入;拖到文件则移入其所在目录。
+async function onNodeDrop(dragging: any, drop: any, _dropType: string) {
+  if (dragging.data?.type !== 'file') {
+    ElMessage.warning('暂不支持移动目录')
+    refreshTree()
     return
   }
-  if (dragging.data?.type === 'file' && drop.data?.type === 'dir') {
-    try {
-      await scriptApi.move(dragging.data.key, drop.data.key)
-      ElMessage.success('已移动')
-      refreshTree()
-    } catch (e: any) {
-      ElMessage.error(e?.response?.data?.message || '移动失败')
-    }
-  } else if (dragging.data?.type === 'dir' && drop.data?.type === 'dir') {
-    ElMessage.warning('目录移动暂不支持,请使用重命名')
+  // 目标目录:拖到文件夹→该文件夹;拖到文件→该文件所在目录
+  let targetDir = ''
+  if (drop.data?.type === 'directory') {
+    targetDir = drop.data.key
+  } else if (drop.data?.type === 'file') {
+    const p: string = drop.data.key
+    targetDir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
+  }
+  const oldPath: string = dragging.data.key
+  const oldDir = oldPath.includes('/') ? oldPath.slice(0, oldPath.lastIndexOf('/')) : ''
+  if (!targetDir || oldDir === targetDir) {
+    refreshTree() // 已在目标目录或无法表达,恢复真实状态
+    return
+  }
+  try {
+    await scriptApi.move(oldPath, targetDir)
+    ElMessage.success('已移动')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '移动失败')
+  } finally {
+    refreshTree()
   }
 }
 
