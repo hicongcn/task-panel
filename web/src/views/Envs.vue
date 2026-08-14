@@ -10,26 +10,26 @@
       <el-table-column width="36" align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
-      <el-table-column label="名称" min-width="150">
+      <el-table-column label="名称" min-width="110">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.name }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="值" min-width="180">
+      <el-table-column label="值" min-width="140">
         <template #default="{ row }">
           <span class="copy-cell value-text">{{ row.value }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.value)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-      <el-table-column label="更新时间" width="150">
+      <el-table-column prop="remark" label="备注" min-width="110" show-overflow-tooltip />
+      <el-table-column label="更新时间" width="130">
         <template #default="{ row }">{{ fmtTime(row.updated_at) }}</template>
       </el-table-column>
-      <el-table-column label="启用" width="80">
+      <el-table-column label="启用" width="90">
         <template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button size="small" @click="toggle(row)">{{ row.enabled ? '禁用' : '启用' }}</el-button>
