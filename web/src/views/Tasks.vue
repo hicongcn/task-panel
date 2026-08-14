@@ -39,12 +39,12 @@
       </el-table-column>
       <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
+          <el-button size="small" class="op-btn" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
             {{ row.status === 'running' ? '停止' : '运行' }}
           </el-button>
-          <el-button size="small" @click="viewLog(row)">日志</el-button>
+          <el-button size="small" class="op-btn" @click="viewLog(row)">日志</el-button>
           <el-dropdown trigger="click" @command="(cmd: string) => onMore(cmd, row)">
-            <el-button size="small">更多<el-icon class="more-arrow"><ArrowDown /></el-icon></el-button>
+            <el-button size="small" class="op-btn">更多<el-icon class="more-arrow"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="toggle">{{ row.enabled ? '禁用' : '启用' }}</el-dropdown-item>
@@ -60,6 +60,10 @@
     <el-drawer v-model="liveDrawer.visible" title="实时日志" size="55%" @close="liveDrawer.taskId = 0">
       <LogViewer v-if="liveDrawer.taskId" :task-id="liveDrawer.taskId" :key="liveDrawer.taskId" />
     </el-drawer>
+
+    <el-dialog v-model="logDialog.visible" :title="'最近日志 - ' + logDialog.taskName" width="70%">
+      <div class="log-surface log-static" v-html="logDialog.contentHtml"></div>
+    </el-dialog>
 
     <el-dialog v-model="formDialog.visible" :title="formDialog.id ? '编辑任务' : '新建任务'" width="560px">
       <el-form label-width="110px">
@@ -99,6 +103,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api/task'
+import { logApi } from '@/api/log'
+import { ansiToHtml } from '@/utils/ansi'
 import { scriptApi } from '@/api/script'
 import LogViewer from '@/components/LogViewer.vue'
 
@@ -110,6 +116,7 @@ const tagStats = ref<Record<string, number>>({})
 const selected = ref<Task[]>([])
 
 const liveDrawer = reactive({ visible: false, taskId: 0 })
+const logDialog = reactive({ visible: false, taskName: '', contentHtml: '' })
 
 const formDialog = reactive({
   visible: false, loading: false, id: 0,
@@ -217,10 +224,22 @@ function onMore(cmd: string, row: Task) {
   else if (cmd === 'delete') remove(row)
 }
 
-// viewLog 查看最近一条日志(正在运行的显示实时流)。
-function viewLog(row: Task) {
-  liveDrawer.taskId = row.id
-  liveDrawer.visible = true
+// viewLog 查看最近一条日志:优先读历史日志文件内容(运行中也能读到当前已写入部分)。
+async function viewLog(row: Task) {
+  try {
+    const res: any = await logApi.latest(row.id)
+    const log = res.data.data
+    if (!log?.id) {
+      ElMessage.info('该任务还没有执行记录')
+      return
+    }
+    const d: any = await logApi.detail(log.id)
+    logDialog.taskName = row.name
+    logDialog.contentHtml = ansiToHtml(d.data.content || '(日志内容为空)')
+    logDialog.visible = true
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '获取日志失败')
+  }
 }
 
 async function runTask(row: Task) {
@@ -252,5 +271,7 @@ async function remove(row: Task) {
 .cron-desc { color: #909399; font-size: 12px; margin-top: 4px; }
 .tag { margin-right: 4px; cursor: pointer; }
 .more-arrow { margin-left: 2px; font-size: 12px; }
+.op-btn { margin-right: 6px; }
+.log-static { max-height: 60vh; }
 .tip { color: #909399; font-size: 12px; margin-top: 4px; line-height: 1.5; }
 </style>
