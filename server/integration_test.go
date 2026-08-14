@@ -1638,3 +1638,79 @@ func TestDragReorderAndMove(t *testing.T) {
 }
 
 // ---------- 助手 ----------
+
+// ---------- 渠道推送设置(push_on) ----------
+
+func TestNotifyPushOn(t *testing.T) {
+	token := getToken(t)
+
+	var mu sync.Mutex
+	var received []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		received = append(received, m)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// 渠道只推失败
+	w := doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "只推失败", "type": "webhook", "enabled": true,
+		"config": map[string]interface{}{"url": srv.URL, "push_on": []string{"failed"}},
+	})
+	assertCode(t, w, 201, 0, "create webhook")
+	var ch struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &ch)
+	channelID := uint(ch.Data["id"].(float64))
+
+	// 成功任务 → 不应推送
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "push_on_ok.sh", "content": "#!/bin/bash\necho ok\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "推送成功任务", "command": "push_on_ok.sh", "cron_expression": "0 3 * * *", "enabled": false,
+	})
+	assertCode(t, w, 201, 0, "create task")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	taskID := uint(created.Data["id"].(float64))
+
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/tasks/%d/run", taskID), token, nil)
+	assertCode(t, w, 200, 0, "run success task")
+	time.Sleep(3 * time.Second)
+	mu.Lock()
+	got := received
+	mu.Unlock()
+	if len(got) != 0 {
+		t.Fatalf("只推失败的渠道不应收到成功通知: %+v", got)
+	}
+
+	// 失败任务(删除脚本后运行)→ 应推送
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=push_on_ok.sh", token, nil)
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/tasks/%d/run", taskID), token, nil)
+	assertCode(t, w, 200, 0, "run failed task")
+	waitFor(t, 15*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) > 0
+	}, "failed notification")
+	mu.Lock()
+	got2 := received
+	mu.Unlock()
+	if len(got2) == 0 || got2[0]["title"] != "任务执行失败" {
+		t.Fatalf("失败应推送: %+v", got2)
+	}
+
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", channelID), token, nil)
+}
+
+// ---------- 助手 ----------

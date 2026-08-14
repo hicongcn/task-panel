@@ -163,9 +163,36 @@ func (s *NotifyService) Notify(title, content string) {
 }
 
 // NotifyTaskResult 发送任务执行结果通知。
+// 每个渠道按自身的"推送设置"(config.push_on)决定是否推送该状态;未配置则默认全推。
 func (s *NotifyService) NotifyTaskResult(taskName, status string, duration float64) {
 	title, content := buildTaskResultMessage(taskName, status, duration)
-	s.Notify(title, content)
+	var chs []model.NotifyChannel
+	database.DB.Where("enabled = ?", true).Find(&chs)
+	for _, ch := range chs {
+		ch := ch
+		if !s.shouldPush(ch, status) {
+			continue
+		}
+		go s.sendOne(ch, title, content)
+	}
+}
+
+// shouldPush 按渠道 push_on 配置判断是否推送某状态(默认全推)。
+func (s *NotifyService) shouldPush(ch model.NotifyChannel, status string) bool {
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(ch.Config), &cfg); err != nil {
+		return true
+	}
+	pushOn, ok := cfg["push_on"].([]interface{})
+	if !ok || len(pushOn) == 0 {
+		return true
+	}
+	for _, item := range pushOn {
+		if s, ok := item.(string); ok && s == status {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *NotifyService) sendOne(ch model.NotifyChannel, title, content string) error {

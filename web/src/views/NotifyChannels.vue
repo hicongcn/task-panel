@@ -5,8 +5,7 @@
     </div>
 
     <el-table :data="channels" v-loading="loading" border stripe>
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="name" label="名称" min-width="130" />
+      <el-table-column prop="name" label="名称" min-width="140" />
       <el-table-column label="类型" width="110">
         <template #default="{ row }">{{ notifyTypeLabel(row.type) }}</template>
       </el-table-column>
@@ -40,6 +39,14 @@
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
+        </el-form-item>
+        <el-form-item label="推送设置">
+          <el-checkbox-group v-model="form.pushOn">
+            <el-checkbox value="success" label="success">成功推送</el-checkbox>
+            <el-checkbox value="failed" label="failed">失败推送</el-checkbox>
+            <el-checkbox value="aborted" label="aborted">终止推送</el-checkbox>
+          </el-checkbox-group>
+          <div class="tip">留空 = 运行完毕全部推送;取消勾选某状态则结果为该状态时不推送到此渠道</div>
         </el-form-item>
 
         <template v-if="form.type === 'webhook'">
@@ -114,7 +121,7 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 
-const form = reactive<any>({ name: '', type: 'webhook', enabled: true, config: { method: 'POST', port: 587 } })
+const form = reactive<any>({ name: '', type: 'webhook', enabled: true, pushOn: ['success', 'failed', 'aborted'], config: { method: 'POST', port: 587 } })
 
 async function load() {
   loading.value = true
@@ -126,7 +133,7 @@ async function load() {
 
 function openCreate() {
   editingId.value = null
-  Object.assign(form, { name: '', type: 'webhook', enabled: true, config: { method: 'POST', port: 587 } })
+  Object.assign(form, { name: '', type: 'webhook', enabled: true, pushOn: ['success', 'failed', 'aborted'], config: { method: 'POST', port: 587 } })
   dialogVisible.value = true
 }
 
@@ -137,6 +144,7 @@ function openEdit(row: NotifyChannel) {
     type: row.type,
     enabled: row.enabled,
     config: { method: 'POST', port: 587, ...row.config },
+    pushOn: Array.isArray(row.config?.push_on) ? row.config.push_on : ['success', 'failed', 'aborted'],
   })
   dialogVisible.value = true
 }
@@ -158,7 +166,7 @@ async function onToggle(row: NotifyChannel, v: boolean) {
 
 async function onSave() {
   if (!form.name.trim()) return ElMessage.warning('请填写名称')
-  const payload: any = { name: form.name, type: form.type, enabled: form.enabled, config: form.config }
+  const payload: any = { name: form.name, type: form.type, enabled: form.enabled, config: { ...form.config, push_on: form.pushOn } }
   try {
     if (editingId.value) {
       await notifyApi.update(editingId.value, payload)
@@ -208,4 +216,5 @@ onMounted(load)
 
 <style scoped>
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.tip { color: #909399; font-size: 12px; margin-top: 4px; }
 </style>
