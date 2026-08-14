@@ -13,13 +13,14 @@ export interface Task {
   last_run_at: string | null
   last_run_status: string
   last_run_duration: number
+  tags?: string[]
   created_at: string
   updated_at: string
 }
 
 export const taskApi = {
-  list: (keyword = '', status = '') =>
-    request.get('/tasks', { params: { keyword, status } }),
+  list: (keyword = '', status = '', tag = '') =>
+    request.get('/tasks', { params: { keyword, status, tag } }),
   get: (id: number) => request.get(`/tasks/${id}`),
   create: (data: Partial<Task>) => request.post('/tasks', data),
   update: (id: number, data: Partial<Task>) => request.put(`/tasks/${id}`, data),
@@ -30,4 +31,7 @@ export const taskApi = {
   stop: (id: number) => request.put(`/tasks/${id}/stop`),
   cronDescribe: (expression: string) =>
     request.post('/tasks/cron-describe', { expression }),
+  tags: () => request.get('/tasks/tags'),
+  batch: (action: 'enable' | 'disable' | 'run' | 'delete', ids: number[]) =>
+    request.post(`/tasks/batch/${action}`, { ids }),
 }

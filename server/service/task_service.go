@@ -14,8 +14,8 @@ type TaskService struct{}
 
 func NewTaskService() *TaskService { return &TaskService{} }
 
-// List 列出任务,支持关键字与状态过滤。
-func (s *TaskService) List(keyword, status string) []model.Task {
+// List 列出任务,支持关键字、状态与标签过滤。
+func (s *TaskService) List(keyword, status, tag string) []model.Task {
 	q := database.DB.Model(&model.Task{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
@@ -24,9 +24,26 @@ func (s *TaskService) List(keyword, status string) []model.Task {
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
+	if tag != "" {
+		// 标签以 JSON 数组文本存储,精确匹配带引号的标签值
+		q = q.Where("tags LIKE ?", `%"`+tag+`"%`)
+	}
 	var tasks []model.Task
 	q.Order("updated_at DESC").Find(&tasks)
 	return tasks
+}
+
+// TagStats 统计所有标签及其任务数。
+func (s *TaskService) TagStats() map[string]int {
+	var tasks []model.Task
+	database.DB.Select("tags").Find(&tasks)
+	stats := make(map[string]int)
+	for _, t := range tasks {
+		for _, tag := range t.Tags {
+			stats[tag]++
+		}
+	}
+	return stats
 }
 
 // Get 按 ID 取任务。
@@ -47,6 +64,7 @@ type CreateInput struct {
 	TimeoutSeconds int
 	MaxRetries     int
 	RetryInterval  int
+	Tags           []string
 }
 
 // Create 新建任务。enabled=true 时同步注册调度。
@@ -60,7 +78,7 @@ func (s *TaskService) Create(in CreateInput) (*model.Task, error) {
 		Name: in.Name, Command: in.Command, CronExpression: in.CronExpression,
 		Enabled: in.Enabled, TimeoutSeconds: in.TimeoutSeconds,
 		MaxRetries: in.MaxRetries, RetryInterval: in.RetryInterval,
-		Status: status, LastRunStatus: runStatus,
+		Status: status, LastRunStatus: runStatus, Tags: in.Tags,
 	}
 	if err := database.DB.Create(task).Error; err != nil {
 		return nil, fmt.Errorf("创建失败: %w", err)
@@ -84,6 +102,7 @@ type UpdateInput struct {
 	TimeoutSeconds *int
 	MaxRetries     *int
 	RetryInterval  *int
+	Tags           *[]string
 }
 
 func (s *TaskService) Update(id uint, in UpdateInput) (*model.Task, error) {
@@ -142,6 +161,9 @@ func (s *TaskService) Update(id uint, in UpdateInput) (*model.Task, error) {
 		updates["enabled"] = *in.Enabled
 		enabledChanged = true
 	}
+	if in.Tags != nil {
+		updates["tags"] = model.StringList(*in.Tags)
+	}
 	if len(updates) > 0 {
 		if err := database.DB.Model(task).Updates(updates).Error; err != nil {
 			return nil, fmt.Errorf("更新失败: %w", err)
@@ -194,6 +216,51 @@ func (s *TaskService) Run(id uint) error {
 		return fmt.Errorf("任务正在运行中")
 	}
 	return GetScheduler().RunNow(id)
+}
+
+// BatchResult 批量操作结果统计。
+type BatchResult struct {
+	OK   int `json:"ok"`
+	Fail int `json:"fail"`
+}
+
+// BatchSetEnabled 批量启用/禁用。
+func (s *TaskService) BatchSetEnabled(ids []uint, enabled bool) BatchResult {
+	var res BatchResult
+	for _, id := range ids {
+		if _, err := s.SetEnabled(id, enabled); err != nil {
+			res.Fail++
+		} else {
+			res.OK++
+		}
+	}
+	return res
+}
+
+// BatchRun 批量触发(已在运行的任务计为失败,不影响其他)。
+func (s *TaskService) BatchRun(ids []uint) BatchResult {
+	var res BatchResult
+	for _, id := range ids {
+		if err := s.Run(id); err != nil {
+			res.Fail++
+		} else {
+			res.OK++
+		}
+	}
+	return res
+}
+
+// BatchDelete 批量删除。
+func (s *TaskService) BatchDelete(ids []uint) BatchResult {
+	var res BatchResult
+	for _, id := range ids {
+		if err := s.Delete(id); err != nil {
+			res.Fail++
+		} else {
+			res.OK++
+		}
+	}
+	return res
 }
 
 // Stop 停止运行中的任务。

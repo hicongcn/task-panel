@@ -131,7 +131,7 @@ func (h *OpenAPIHandler) AuthToken(c *gin.Context) {
 // ---- 开放接口(OpenAuth + scope) ----
 
 func (h *OpenAPIHandler) Tasks(c *gin.Context) {
-	response.Success(c, gin.H{"data": service.NewTaskService().List("", "")})
+	response.Success(c, gin.H{"data": service.NewTaskService().List("", "", "")})
 }
 
 func (h *OpenAPIHandler) RunTask(c *gin.Context) {

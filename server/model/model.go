@@ -29,6 +29,7 @@ type Task struct {
 	LastRunStatus   string     `gorm:"size:16" json:"last_run_status"` // success/failed/aborted/none
 	LastRunDuration float64    `json:"last_run_duration"`
 	PID             *int       `json:"pid"`
+	Tags            StringList `gorm:"type:text" json:"tags"` // 标签(JSON 数组文本)
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }

@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1107,6 +1108,86 @@ func doRequestIP(t *testing.T, method, path, token, ip string, body interface{})
 	w := httptest.NewRecorder()
 	testEngine.ServeHTTP(w, req)
 	return w
+}
+
+// ---------- 任务标签与批量操作 ----------
+
+func TestTaskTags(t *testing.T) {
+	token := getToken(t)
+
+	// 准备脚本
+	w := doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "tag_test.sh", "content": "#!/bin/bash\necho ok\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+
+	// 创建带标签任务
+	mk := func(name string, tags []string) uint {
+		t.Helper()
+		w := doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+			"name": name, "command": "tag_test.sh", "cron_expression": "0 3 * * *",
+			"enabled": false, "tags": tags,
+		})
+		assertCode(t, w, 201, 0, "create task "+name)
+		var c struct {
+			Data struct {
+				ID   uint     `json:"id"`
+				Tags []string `json:"tags"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(decodeResp(t, w).Data, &c)
+		if len(c.Data.Tags) != len(tags) {
+			t.Fatalf("tags 未保存: %+v", c.Data.Tags)
+		}
+		return c.Data.ID
+	}
+	idA := mk("标签任务A", []string{"备份", "日常"})
+	idB := mk("标签任务B", []string{"爬虫"})
+
+	// 按标签过滤
+	enc := url.QueryEscape("备份")
+	w = doRequest(t, "GET", "/api/v1/tasks?tag="+enc, token, nil)
+	assertCode(t, w, 200, 0, "filter by tag")
+	var list struct {
+		Data []struct {
+			ID   uint     `json:"id"`
+			Tags []string `json:"tags"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &list)
+	if len(list.Data) != 1 || list.Data[0].ID != idA {
+		t.Fatalf("按标签过滤结果不符: %+v", list.Data)
+	}
+
+	// 标签统计
+	w = doRequest(t, "GET", "/api/v1/tasks/tags", token, nil)
+	assertCode(t, w, 200, 0, "tag stats")
+	var stats struct {
+		Data map[string]int `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &stats)
+	if stats.Data["备份"] != 1 || stats.Data["爬虫"] != 1 || stats.Data["日常"] != 1 {
+		t.Fatalf("标签统计不符: %+v", stats.Data)
+	}
+
+	// 批量禁用/启用/运行/删除
+	ids := []uint{idA, idB}
+	for _, path := range []string{"disable", "enable", "run", "delete"} {
+		w = doRequest(t, "POST", "/api/v1/tasks/batch/"+path, token, map[string]interface{}{"ids": ids})
+		assertCode(t, w, 200, 0, "batch "+path)
+	}
+
+	// 批量删除后列表应为空
+	w = doRequest(t, "GET", "/api/v1/tasks", token, nil)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &list)
+	for _, tk := range list.Data {
+		if tk.ID == idA || tk.ID == idB {
+			t.Fatal("批量删除未生效")
+		}
+	}
+
+	// 清理脚本
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=tag_test.sh", token, nil)
 }
 
 // ---------- 助手 ----------
