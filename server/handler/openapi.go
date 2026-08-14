@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"strconv"
 
 	"taskpanel/middleware"
@@ -120,6 +121,8 @@ func (h *OpenAPIHandler) AuthToken(c *gin.Context) {
 	token, expiresAt, err := h.svc.Token(req.ClientID, req.ClientSecret)
 	if err != nil {
 		recordAudit(c, model.AuditActionOpenAuthFail, "auth", req.ClientID)
+		service.GetNotifyService().NotifyEvent("OpenAPI 认证失败",
+			fmt.Sprintf("应用 %q 尝试换取令牌失败: %s", req.ClientID, err.Error()))
 		response.Unauthorized(c, err.Error())
 		return
 	}

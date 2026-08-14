@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"time"
 
 	"taskpanel/middleware"
@@ -67,6 +68,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		service.NewAuditService().Record(req.Username, model.AuditActionLoginFailed, "auth", "", ip)
 		switch err {
 		case service.ErrAccountLocked:
+			service.GetNotifyService().NotifyEvent("登录异常告警",
+				fmt.Sprintf("账号 %q 因多次失败已被锁定(IP: %s)", req.Username, ip))
 			response.TooManyRequests(c, err.Error())
 		case service.ErrAccountDisabled:
 			response.Forbidden(c, err.Error())

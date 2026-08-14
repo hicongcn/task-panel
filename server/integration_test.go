@@ -1478,3 +1478,96 @@ func TestSystemConfig(t *testing.T) {
 }
 
 // ---------- 助手 ----------
+
+// ---------- 推送模板 + 系统事件告警 ----------
+
+func TestNotifyTemplateAndEvent(t *testing.T) {
+	token := getToken(t)
+
+	var mu sync.Mutex
+	var received []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		received = append(received, m)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	w := doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "模板测试", "type": "webhook", "enabled": true,
+		"config": map[string]interface{}{"url": srv.URL},
+	})
+	assertCode(t, w, 201, 0, "create webhook")
+	var ch struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &ch)
+	channelID := uint(ch.Data["id"].(float64))
+
+	// 设置自定义成功模板
+	w = doRequest(t, "PUT", "/api/v1/system/config", token, map[string]interface{}{
+		"notify_tpl_success": "自定义成功\n任务 {task_name} 完成,耗时 {duration}s",
+	})
+	assertCode(t, w, 200, 0, "set template")
+
+	// 运行成功任务 → 模板渲染
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "tpl_test.sh", "content": "#!/bin/bash\necho ok\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "模板任务", "command": "tpl_test.sh", "cron_expression": "0 3 * * *", "enabled": false,
+	})
+	assertCode(t, w, 201, 0, "create task")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	taskID := uint(created.Data["id"].(float64))
+
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/tasks/%d/run", taskID), token, nil)
+	assertCode(t, w, 200, 0, "run task")
+	waitFor(t, 15*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) > 0
+	}, "template notification")
+
+	mu.Lock()
+	got := received
+	received = nil
+	mu.Unlock()
+	if len(got) == 0 || got[0]["title"] != "自定义成功" {
+		t.Fatalf("自定义模板未生效: %+v", got)
+	}
+
+	// 系统事件告警(直接调用 service 触发)
+	service.GetNotifyService().NotifyEvent("系统告警测试", "内容")
+	waitFor(t, 15*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) > 0
+	}, "event alert")
+	mu.Lock()
+	got2 := received
+	mu.Unlock()
+	if len(got2) == 0 || got2[0]["title"] != "系统告警测试" {
+		t.Fatalf("事件告警未到达: %+v", got2)
+	}
+
+	// 恢复默认模板
+	w = doRequest(t, "PUT", "/api/v1/system/config", token, map[string]interface{}{
+		"notify_tpl_success": "",
+	})
+	assertCode(t, w, 200, 0, "reset template")
+
+	// 清理
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=tpl_test.sh", token, nil)
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", channelID), token, nil)
+}
+
+// ---------- 助手 ----------

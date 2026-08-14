@@ -21,9 +21,13 @@ func NewSystemConfigService() *SystemConfigService { return &SystemConfigService
 // GetConfig 返回面板配置。
 func (s *SystemConfigService) GetConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"panel_title":    getSetting(settingPanelTitle, "Task Panel"),
-		"panel_logo":     getSetting(settingPanelLogo, ""),
-		"log_clean_days": settingInt(settingLogClean, 0),
+		"panel_title":        getSetting(settingPanelTitle, "Task Panel"),
+		"panel_logo":         getSetting(settingPanelLogo, ""),
+		"log_clean_days":     settingInt(settingLogClean, 0),
+		"notify_tpl_success": getSetting(settingTplSuccess, ""),
+		"notify_tpl_failed":  getSetting(settingTplFailed, ""),
+		"notify_tpl_aborted": getSetting(settingTplAborted, ""),
+		"event_alerts":       getSetting(settingEventAlerts, "true") == "true",
 	}
 }
 
@@ -34,6 +38,18 @@ func (s *SystemConfigService) UpdateConfig(values map[string]interface{}) error 
 		case "panel_title", "panel_logo":
 			if s, ok := v.(string); ok && len(s) <= 64 {
 				if err := setSetting(k, s); err != nil {
+					return err
+				}
+			}
+		case "notify_tpl_success", "notify_tpl_failed", "notify_tpl_aborted":
+			if s, ok := v.(string); ok && len(s) <= 500 {
+				if err := setSetting(k, s); err != nil {
+					return err
+				}
+			}
+		case "event_alerts":
+			if b, ok := v.(bool); ok {
+				if err := setSetting(k, strconv.FormatBool(b)); err != nil {
 					return err
 				}
 			}

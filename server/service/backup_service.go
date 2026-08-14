@@ -62,6 +62,7 @@ func (s *BackupService) Create() (*BackupInfo, error) {
 	}
 
 	if err := backup.CreateBackup(dest, s.backupKey(), sources); err != nil {
+		GetNotifyService().NotifyEvent("备份失败告警", fmt.Sprintf("创建备份失败: %v", err))
 		return nil, fmt.Errorf("备份失败: %w", err)
 	}
 
@@ -246,6 +247,7 @@ func (s *BackupService) runScheduledBackup(keep int) {
 	info, err := s.Create()
 	if err != nil {
 		log.Printf("定时备份失败: %v", err)
+		GetNotifyService().NotifyEvent("定时备份失败告警", err.Error())
 		return
 	}
 	log.Printf("定时备份完成: %s", info.Name)

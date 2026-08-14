@@ -63,6 +63,31 @@
         </el-form-item>
       </el-form>
     </el-card>
+
+    <el-card shadow="never" class="card">
+      <template #header><span>通知推送模板</span></template>
+      <el-form label-width="100px" style="max-width:640px">
+        <el-form-item label="成功模板">
+          <el-input v-model="panelCfg.tplSuccess" type="textarea" :rows="2" placeholder="第一行为标题,其余为内容" />
+        </el-form-item>
+        <el-form-item label="失败模板">
+          <el-input v-model="panelCfg.tplFailed" type="textarea" :rows="2" placeholder="第一行为标题,其余为内容" />
+        </el-form-item>
+        <el-form-item label="终止模板">
+          <el-input v-model="panelCfg.tplAborted" type="textarea" :rows="2" placeholder="第一行为标题,其余为内容" />
+        </el-form-item>
+        <el-form-item label="占位符">
+          <div class="tip"><code>{task_name}</code> 任务名 · <code>{status}</code> 状态 · <code>{duration}</code> 耗时(秒)。留空使用默认模板。</div>
+        </el-form-item>
+        <el-form-item label="系统事件告警">
+          <el-switch v-model="panelCfg.eventAlerts" />
+          <div class="tip">登录锁定 / OpenAPI 认证失败 / 备份失败时,向所有启用渠道推送告警</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="cfgSaving" @click="saveNotifyCfg">保存通知设置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
   </div>
 </template>
 
@@ -82,7 +107,7 @@ const setting = ref(false)
 const enabling = ref(false)
 const disabling = ref(false)
 const cfgSaving = ref(false)
-const panelCfg = reactive({ title: '', logo: '', cleanDays: 0 })
+const panelCfg = reactive({ title: '', logo: '', cleanDays: 0, tplSuccess: '', tplFailed: '', tplAborted: '', eventAlerts: true })
 
 async function loadPanelCfg() {
   try {
@@ -91,6 +116,10 @@ async function loadPanelCfg() {
     panelCfg.title = d.panel_title || ''
     panelCfg.logo = d.panel_logo || ''
     panelCfg.cleanDays = Number(d.log_clean_days) || 0
+    panelCfg.tplSuccess = d.notify_tpl_success || ''
+    panelCfg.tplFailed = d.notify_tpl_failed || ''
+    panelCfg.tplAborted = d.notify_tpl_aborted || ''
+    panelCfg.eventAlerts = d.event_alerts !== false
   } catch {}
 }
 
@@ -109,6 +138,21 @@ async function saveCleanCfg() {
   try {
     await systemApi.updateConfig({ log_clean_days: panelCfg.cleanDays })
     ElMessage.success('日志清理设置已保存')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '保存失败')
+  } finally { cfgSaving.value = false }
+}
+
+async function saveNotifyCfg() {
+  cfgSaving.value = true
+  try {
+    await systemApi.updateConfig({
+      notify_tpl_success: panelCfg.tplSuccess,
+      notify_tpl_failed: panelCfg.tplFailed,
+      notify_tpl_aborted: panelCfg.tplAborted,
+      event_alerts: panelCfg.eventAlerts,
+    })
+    ElMessage.success('通知设置已保存')
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '保存失败')
   } finally { cfgSaving.value = false }

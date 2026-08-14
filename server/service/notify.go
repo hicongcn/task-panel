@@ -349,6 +349,36 @@ func validateNotifyConfig(typ string, config map[string]interface{}) error {
 	return nil
 }
 
+// 推送模板的 Setting 键与系统事件告警开关。
+const (
+	settingTplSuccess  = "notify_tpl_success"
+	settingTplFailed   = "notify_tpl_failed"
+	settingTplAborted  = "notify_tpl_aborted"
+	settingEventAlerts = "event_alerts"
+)
+
+// defaultNotifyTemplate 各状态的默认模板(首行为标题,其余为内容;支持 {task_name}/{status}/{duration})。
+func defaultNotifyTemplate(status string) string {
+	switch status {
+	case model.RunStatusSuccess:
+		return "任务执行成功\n任务「{task_name}」执行成功,耗时 {duration} 秒"
+	case model.RunStatusFailed:
+		return "任务执行失败\n任务「{task_name}」执行失败,耗时 {duration} 秒"
+	case model.RunStatusAborted:
+		return "任务执行终止\n任务「{task_name}」被终止"
+	default:
+		return "任务执行" + status + "\n任务「{task_name}」状态 {status}"
+	}
+}
+
+// NotifyEvent 推送系统事件告警(登录锁定/OpenAPI 认证失败/备份失败等)。
+func (s *NotifyService) NotifyEvent(title, content string) {
+	if getSetting(settingEventAlerts, "true") != "true" {
+		return
+	}
+	s.Notify(title, content)
+}
+
 func buildTaskResultMessage(taskName, status string, duration float64) (string, string) {
 	statusText := map[string]string{
 		model.RunStatusSuccess: "成功",
@@ -358,9 +388,35 @@ func buildTaskResultMessage(taskName, status string, duration float64) (string, 
 	if statusText == "" {
 		statusText = status
 	}
-	title := fmt.Sprintf("任务执行%s", statusText)
-	content := fmt.Sprintf("任务「%s」执行%s,耗时 %.2f 秒", taskName, statusText, duration)
+	tplKey := settingTplFailed
+	if status == model.RunStatusSuccess {
+		tplKey = settingTplSuccess
+	} else if status == model.RunStatusAborted {
+		tplKey = settingTplAborted
+	}
+	tpl := getSetting(tplKey, defaultNotifyTemplate(status))
+	return renderNotifyTemplate(tpl, taskName, statusText, duration)
+}
+
+// renderNotifyTemplate 渲染模板:首行为标题,其余为内容;替换 {task_name}/{status}/{duration}。
+func renderNotifyTemplate(tpl, taskName, status string, duration float64) (string, string) {
+	if tpl == "" {
+		tpl = defaultNotifyTemplate(status)
+	}
+	lines := strings.SplitN(tpl, "\n", 2)
+	title := replaceTemplateVars(strings.TrimSpace(lines[0]), taskName, status, duration)
+	content := ""
+	if len(lines) > 1 {
+		content = replaceTemplateVars(lines[1], taskName, status, duration)
+	}
 	return title, content
+}
+
+func replaceTemplateVars(s, taskName, status string, duration float64) string {
+	s = strings.ReplaceAll(s, "{task_name}", taskName)
+	s = strings.ReplaceAll(s, "{status}", status)
+	s = strings.ReplaceAll(s, "{duration}", fmt.Sprintf("%.2f", duration))
+	return s
 }
 
 func channelDict(ch model.NotifyChannel) map[string]interface{} {

@@ -81,3 +81,20 @@ func TestBuildTaskResultMessage(t *testing.T) {
 		t.Fatal("content 为空")
 	}
 }
+
+func TestRenderNotifyTemplate(t *testing.T) {
+	title, content := renderNotifyTemplate("自定义成功\n任务 {task_name} 好了,耗时 {duration}s", "备份", "成功", 3.5)
+	if title != "自定义成功" || content != "任务 备份 好了,耗时 3.50s" {
+		t.Fatalf("渲染不符: %q / %q", title, content)
+	}
+	// 空模板回退默认
+	title, content = renderNotifyTemplate("", "任务A", "成功", 1.0)
+	if title != "任务执行成功" || content == "" {
+		t.Fatalf("默认模板不符: %q / %q", title, content)
+	}
+	// 无换行:内容为空
+	title, content = renderNotifyTemplate("只有标题", "x", "成功", 1)
+	if title != "只有标题" || content != "" {
+		t.Fatalf("无换行模板不符: %q / %q", title, content)
+	}
+}
