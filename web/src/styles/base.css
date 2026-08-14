@@ -61,3 +61,6 @@ html, body, #app {
 
 /* 禁用 Monaco 悬停提示:查找框按钮的快捷键提示在屏幕边缘溢出并遮挡点击 */
 .monaco-hover { display: none !important; }
+
+/* 表格固定操作列按钮不换行(保持一行展示) */
+.el-table .el-table__fixed-right .cell { white-space: nowrap !important; }
