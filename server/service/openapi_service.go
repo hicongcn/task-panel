@@ -89,10 +89,28 @@ func (s *OpenAPIService) Create(name string, scopes []string) (*model.OpenApp, s
 }
 
 // List 返回应用列表(不含 secret)。
-func (s *OpenAPIService) List() []model.OpenApp {
+// List 返回应用列表(含解析后的 scopes 数组,不含 secret)。
+func (s *OpenAPIService) List() []map[string]interface{} {
 	var apps []model.OpenApp
 	database.DB.Order("id ASC").Find(&apps)
-	return apps
+	out := make([]map[string]interface{}, len(apps))
+	for i, app := range apps {
+		out[i] = appDict(app)
+	}
+	return out
+}
+
+// appDict 构造应用对外结构(隐藏 secret,scopes 解析为数组)。
+func appDict(app model.OpenApp) map[string]interface{} {
+	return map[string]interface{}{
+		"id":         app.ID,
+		"name":       app.Name,
+		"client_id":  app.ClientID,
+		"scopes":     scopesFromJSON(app.Scopes),
+		"enabled":    app.Enabled,
+		"created_at": app.CreatedAt,
+		"updated_at": app.UpdatedAt,
+	}
 }
 
 // Update 更新应用名称与权限范围。

@@ -1017,9 +1017,28 @@ func TestOpenAPI(t *testing.T) {
 	})
 	assertCode(t, w, 400, 400, "非法 scope 拒绝")
 
-	// 列表
+	// 列表:应包含解析后的 scopes 数组(回归:曾因 json:"-" 导致前端权限范围为空)
 	w = doRequest(t, "GET", "/api/v1/open/apps", token, nil)
 	assertCode(t, w, 200, 0, "list apps")
+	var appList struct {
+		Data []struct {
+			ID     uint     `json:"id"`
+			Scopes []string `json:"scopes"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &appList)
+	foundApp := false
+	for _, a := range appList.Data {
+		if a.ID == created.Data.ID {
+			foundApp = true
+			if len(a.Scopes) != 2 || a.Scopes[0] != "tasks:read" {
+				t.Fatalf("列表应含 scopes 数组: %+v", a.Scopes)
+			}
+		}
+	}
+	if !foundApp {
+		t.Fatal("列表未包含刚创建的应用")
+	}
 
 	// 错误密钥换 token → 401
 	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
