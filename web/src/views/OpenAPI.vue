@@ -14,16 +14,20 @@
 
     <el-table :data="apps" v-loading="loading" border stripe>
       <el-table-column prop="name" label="名称" show-overflow-tooltip />
-      <el-table-column label="Client ID">
+      <el-table-column label="Client ID" width="150">
         <template #default="{ row }">
-          <span class="copy-cell">{{ row.client_id }}</span>
-          <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
+          <div class="copy-wrap">
+            <span class="copy-cell">{{ row.client_id }}</span>
+            <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="Client Secret">
+      <el-table-column label="Client Secret" width="130">
         <template #default="{ row }">
-          <span class="copy-cell secret-text">••••••••</span>
-          <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
+          <div class="copy-wrap">
+            <span class="copy-cell secret-text">••••••••</span>
+            <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="权限">

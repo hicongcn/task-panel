@@ -83,3 +83,8 @@ html, body, #app {
   vertical-align: middle;
 }
 .copy-btn { flex-shrink: 0; }
+
+/* 复制单元格 flex 布局:内容省略占位,按钮固定右侧可见 */
+.copy-wrap { display: flex; align-items: center; }
+.copy-wrap .copy-cell { flex: 1; min-width: 0; }
+.copy-wrap .copy-btn { flex-shrink: 0; }

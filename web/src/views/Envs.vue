@@ -10,16 +10,20 @@
       <el-table-column align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
-      <el-table-column label="名称">
+      <el-table-column label="名称" width="110">
         <template #default="{ row }">
-          <span class="copy-cell">{{ row.name }}</span>
-          <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>
+          <div class="copy-wrap">
+            <span class="copy-cell">{{ row.name }}</span>
+            <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="值">
+      <el-table-column label="值" width="220">
         <template #default="{ row }">
-          <span class="copy-cell value-text">{{ row.value }}</span>
-          <el-button link size="small" class="copy-btn" @click="copy(row.value)"><el-icon><CopyDocument /></el-icon></el-button>
+          <div class="copy-wrap">
+            <span class="copy-cell value-text">{{ row.value }}</span>
+            <el-button link size="small" class="copy-btn" @click="copy(row.value)"><el-icon><CopyDocument /></el-icon></el-button>
+          </div>
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" show-overflow-tooltip />
