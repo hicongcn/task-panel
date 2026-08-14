@@ -34,6 +34,19 @@ func ValidScopes() map[string]string {
 	}
 }
 
+// randomAlnum 生成 n 位字母数字随机串(供 client_id 使用)。
+func randomAlnum(n int) string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return string(b)
+}
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
@@ -77,7 +90,7 @@ func (s *OpenAPIService) Create(name string, scopes []string) (*model.OpenApp, s
 	secret := randomHex(32)
 	app := &model.OpenApp{
 		Name:         name,
-		ClientID:     randomHex(16),
+		ClientID:     randomAlnum(4) + "-" + randomAlnum(8),
 		ClientSecret: secret,
 		Scopes:       scopesToJSON(scopes),
 		Enabled:      true,
@@ -100,16 +113,17 @@ func (s *OpenAPIService) List() []map[string]interface{} {
 	return out
 }
 
-// appDict 构造应用对外结构(隐藏 secret,scopes 解析为数组)。
+// appDict 构造应用对外结构(含 secret 供点击复制,单管理员自用面板)。
 func appDict(app model.OpenApp) map[string]interface{} {
 	return map[string]interface{}{
-		"id":         app.ID,
-		"name":       app.Name,
-		"client_id":  app.ClientID,
-		"scopes":     scopesFromJSON(app.Scopes),
-		"enabled":    app.Enabled,
-		"created_at": app.CreatedAt,
-		"updated_at": app.UpdatedAt,
+		"id":            app.ID,
+		"name":          app.Name,
+		"client_id":     app.ClientID,
+		"client_secret": app.ClientSecret,
+		"scopes":        scopesFromJSON(app.Scopes),
+		"enabled":       app.Enabled,
+		"created_at":    app.CreatedAt,
+		"updated_at":    app.UpdatedAt,
 	}
 }
 

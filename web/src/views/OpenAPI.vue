@@ -14,22 +14,33 @@
 
     <el-table :data="apps" v-loading="loading" border stripe>
       <el-table-column prop="name" label="名称" min-width="40" show-overflow-tooltip />
-      <el-table-column prop="client_id" label="Client ID" min-width="80" show-overflow-tooltip />
-      <el-table-column label="权限范围" min-width="70">
+      <el-table-column label="Client ID" min-width="100">
+        <template #default="{ row }">
+          <span class="copy-cell">{{ row.client_id }}</span>
+          <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="Client Secret" min-width="90">
+        <template #default="{ row }">
+          <span class="copy-cell secret-text">••••••••</span>
+          <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="权限" min-width="70">
         <template #default="{ row }">
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" min-width="120" show-overflow-tooltip />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="warning" @click="onReset(row)">重置密钥</el-button>
+          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" type="warning" @click="onReset(row)">重置</el-button>
           <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="createVisible" title="新建应用" width="480px">
+    <el-dialog v-model="createVisible" :title="editingId ? '编辑应用' : '新建应用'" width="480px">
       <el-form label-width="90px">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="如: 自动同步脚本" />
@@ -68,11 +79,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { CopyDocument } from '@element-plus/icons-vue'
 import { openApi, scopeLabels, type OpenApp } from '@/api/openapi'
 
 const apps = ref<OpenApp[]>([])
 const loading = ref(false)
 const createVisible = ref(false)
+const editingId = ref<number | null>(null)
 const secretVisible = ref(false)
 const secretData = reactive({ client_id: '', client_secret: '' })
 const form = reactive({ name: '', scopes: [] as string[] })
@@ -92,21 +105,45 @@ async function load() {
 }
 
 function openCreate() {
+  editingId.value = null
   Object.assign(form, { name: '', scopes: [] })
   createVisible.value = true
+}
+
+// openEdit 打开编辑对话框(名称/权限)
+function openEdit(row: OpenApp) {
+  editingId.value = row.id
+  Object.assign(form, { name: row.name, scopes: scopesOf(row) })
+  createVisible.value = true
+}
+
+// copy 复制文本(Client ID / Secret 点击复制)
+async function copy(text: string) {
+  if (!text) return ElMessage.warning('内容为空')
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.warning('复制失败,请手动选择')
+  }
 }
 
 async function onCreate() {
   if (!form.name.trim()) return ElMessage.warning('请输入名称')
   try {
-    const res: any = await openApi.create(form.name.trim(), form.scopes)
-    const d = res.data.data
-    Object.assign(secretData, { client_id: d.client_id, client_secret: d.client_secret })
+    if (editingId.value) {
+      await openApi.update(editingId.value, { name: form.name.trim(), scopes: form.scopes })
+      ElMessage.success('已更新')
+    } else {
+      const res: any = await openApi.create(form.name.trim(), form.scopes)
+      const d = res.data.data
+      Object.assign(secretData, { client_id: d.client_id, client_secret: d.client_secret })
+      secretVisible.value = true
+    }
     createVisible.value = false
-    secretVisible.value = true
     load()
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '创建失败')
+    ElMessage.error(e?.response?.data?.message || '保存失败')
   }
 }
 
@@ -136,20 +173,14 @@ async function onDelete(row: OpenApp) {
   }
 }
 
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制')
-  } catch {
-    ElMessage.warning('复制失败,请手动选择复制')
-  }
-}
-
 onMounted(load)
 </script>
 
 <style scoped>
 .intro { margin-bottom: 14px; }
+.copy-cell { vertical-align: middle; font-family: monospace; }
+.secret-text { letter-spacing: 2px; }
+.copy-btn { margin-left: 2px; }
 .intro code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
 .toolbar { margin-bottom: 12px; }
 </style>
