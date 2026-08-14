@@ -71,3 +71,22 @@ HTTP (handler)  →  业务 (service)  →  数据 (model / database)
 
 - Docker:多阶段(前端构建 → 后端编译 → alpine 运行时),Go 二进制直接托管前端 dist,无需 nginx。
 - 镜像以非 root 用户运行。
+
+## 双因素认证 (`pkg/totp` + auth)
+
+- RFC 6238 TOTP,纯标准库实现(HMAC-SHA1 / 30s / ±1 窗口),有 RFC 官方测试向量。
+- `User.TOTPSecret` 非空即启用;登录校验动态码,错误计入失败锁定。
+- 兜底:CLI `account-reset --disable-2fa`(丢失验证器的唯一找回通道)。
+
+## CLI 运维 (`cli`)
+
+- 同一二进制子命令:`account-reset` / `log-clean` / `task-trigger`,加载配置 + 初始化 DB 后执行。
+
+## Open API (`service/openapi_service.go` + `middleware/open_auth.go`)
+
+- 参考青龙结构:应用(client_id/secret + scopes)→ `POST /open/auth/token` 换 JWT(typ=open,携带 scopes)→ Bearer 调用 `/open/*`,`RequireScope` 按 scope 拦截。
+- secret 走请求体(不进 URL/访问日志),创建/重置时仅返回一次。
+
+## 系统监控 (`service/sysmonitor.go`)
+
+- gopsutil 后台 2s 采样缓存(CPU/内存/磁盘/负载/主机),`GET /system/stats` 零阻塞读取。

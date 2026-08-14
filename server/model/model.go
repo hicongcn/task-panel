@@ -5,12 +5,13 @@ import "time"
 
 // User 管理员账号。
 type User struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Username     string    `gorm:"size:64;uniqueIndex" json:"username"`
-	Password     string    `gorm:"size:255" json:"-"`
-	Enabled      bool      `gorm:"default:true" json:"enabled"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	Username   string    `gorm:"size:64;uniqueIndex" json:"username"`
+	Password   string    `gorm:"size:255" json:"-"`
+	Enabled    bool      `gorm:"default:true" json:"enabled"`
+	TOTPSecret string    `gorm:"size:64" json:"-"` // 非空表示已启用 2FA
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Task 定时任务。
@@ -156,6 +157,9 @@ const (
 	AuditActionOpenAppDelete  = "open_app_delete"
 	AuditActionOpenAppReset   = "open_app_reset"
 	AuditActionOpenAuthFail   = "open_auth_fail"
+
+	AuditActionTOTPEnable  = "totp_enable"
+	AuditActionTOTPDisable = "totp_disable"
 )
 
 // OpenAPI 开放接口的 scope 常量。

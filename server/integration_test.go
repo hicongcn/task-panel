@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"taskpanel/config"
+	"taskpanel/pkg/totp"
 	"taskpanel/database"
 	"taskpanel/router"
 	"taskpanel/service"
@@ -215,12 +216,12 @@ func TestLoginLockoutService(t *testing.T) {
 
 	// 连续 5 次失败
 	for i := 0; i < 5; i++ {
-		if _, err := svc.Login("admin", "wrong-password", ip); err == nil {
+		if _, err := svc.Login("admin", "wrong-password", ip, ""); err == nil {
 			t.Fatalf("attempt %d should fail", i+1)
 		}
 	}
 	// 第 6 次应返回锁定
-	if _, err := svc.Login("admin", "wrong-password", ip); err != service.ErrAccountLocked {
+	if _, err := svc.Login("admin", "wrong-password", ip, ""); err != service.ErrAccountLocked {
 		t.Fatalf("expected ErrAccountLocked, got %v", err)
 	}
 }
@@ -1006,6 +1007,106 @@ func TestOpenAPI(t *testing.T) {
 
 	// 清理
 	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/open/apps/%d", created.Data.ID), token, nil)
+}
+
+// ---------- 2FA / TOTP ----------
+
+func TestTOTP(t *testing.T) {
+	token := getToken(t)
+
+	// 初始状态:未启用
+	w := doRequest(t, "GET", "/api/v1/auth/totp/status", token, nil)
+	assertCode(t, w, 200, 0, "totp status")
+	var st struct {
+		Data struct {
+			Enabled bool `json:"enabled"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &st)
+	if st.Data.Enabled {
+		t.Fatal("初始不应启用 2FA")
+	}
+
+	// 生成绑定密钥
+	w = doRequest(t, "GET", "/api/v1/auth/totp/setup", token, nil)
+	assertCode(t, w, 200, 0, "totp setup")
+	var setup struct {
+		Data struct {
+			Secret string `json:"secret"`
+			URI    string `json:"uri"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &setup)
+	if setup.Data.Secret == "" || !strings.Contains(setup.Data.URI, "otpauth://") {
+		t.Fatal("setup 返回非法")
+	}
+
+	// 错误码启用 → 400
+	w = doRequest(t, "POST", "/api/v1/auth/totp/enable", token, map[string]string{
+		"secret": setup.Data.Secret, "code": "000000",
+	})
+	assertCode(t, w, 400, 400, "错误码启用拒绝")
+
+	// 正确码启用 → 200
+	code := totp.CurrentCode(setup.Data.Secret)
+	w = doRequest(t, "POST", "/api/v1/auth/totp/enable", token, map[string]string{
+		"secret": setup.Data.Secret, "code": code,
+	})
+	assertCode(t, w, 200, 0, "启用 2FA")
+
+	// 现在登录必须带 TOTP(用唯一 IP,避免共享 IP 限流/锁定计数)
+	uniqueIP := fmt.Sprintf("10.9.%d.%d", time.Now().UnixNano()%200+1, time.Now().UnixNano()%200+1)
+	loginBody := map[string]string{"username": "admin", "password": "Admin@12345"}
+	w = doRequestIP(t, "POST", "/api/v1/auth/login", "", uniqueIP, loginBody)
+	assertCode(t, w, 401, 401, "不带 TOTP 拒绝")
+	w = doRequestIP(t, "POST", "/api/v1/auth/login", "", uniqueIP, map[string]string{
+		"username": "admin", "password": "Admin@12345", "totp_code": "000000",
+	})
+	assertCode(t, w, 401, 401, "错误 TOTP 拒绝")
+	w = doRequestIP(t, "POST", "/api/v1/auth/login", "", uniqueIP, map[string]string{
+		"username": "admin", "password": "Admin@12345", "totp_code": totp.CurrentCode(setup.Data.Secret),
+	})
+	assertCode(t, w, 200, 0, "正确 TOTP 登录")
+
+	// 解除(需当前密码)
+	w = doRequest(t, "POST", "/api/v1/auth/totp/disable", token, map[string]string{
+		"password": "wrong-password",
+	})
+	assertCode(t, w, 400, 400, "错误密码解除拒绝")
+	w = doRequest(t, "POST", "/api/v1/auth/totp/disable", token, map[string]string{
+		"password": "Admin@12345",
+	})
+	assertCode(t, w, 200, 0, "解除 2FA")
+
+	// 解除后登录不再需要 TOTP
+	w = doRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	assertCode(t, w, 200, 0, "解除后正常登录")
+}
+
+// doRequestIP 与 doRequest 相同,但可指定来源 IP(避免触发共享 IP 的登录限流/锁定)。
+func doRequestIP(t *testing.T, method, path, token, ip string, body interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	var reader *bytes.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		reader = bytes.NewReader(b)
+	} else {
+		reader = bytes.NewReader(nil)
+	}
+	req := httptest.NewRequest(method, path, reader)
+	req.RemoteAddr = ip + ":12345"
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	testEngine.ServeHTTP(w, req)
+	return w
 }
 
 // ---------- 助手 ----------

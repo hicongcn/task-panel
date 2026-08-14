@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"taskpanel/cli"
 	"taskpanel/config"
 	"taskpanel/database"
 	"taskpanel/router"
@@ -22,6 +23,18 @@ import (
 )
 
 func main() {
+	// 运维子命令(如 account-reset / log-clean / task-trigger)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "account-reset", "log-clean", "task-trigger", "help", "-h", "--help":
+			if err := cli.Run(os.Args[1:]); err != nil {
+				fmt.Fprintln(os.Stderr, "错误:", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
 	cfgPath := resolveConfigPath()
 	cfg, err := config.Load(cfgPath)
 	if err != nil {

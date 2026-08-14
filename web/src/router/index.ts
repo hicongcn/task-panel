@@ -18,6 +18,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'deps', name: 'deps', component: () => import('@/views/Dependencies.vue'), meta: { title: '依赖管理' } },
       { path: 'openapi', name: 'openapi', component: () => import('@/views/OpenAPI.vue'), meta: { title: '开放接口' } },
       { path: 'audit', name: 'audit', component: () => import('@/views/AuditLogs.vue'), meta: { title: '审计日志' } },
+      { path: 'settings', name: 'settings', component: () => import('@/views/Settings.vue'), meta: { title: '安全设置' } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
