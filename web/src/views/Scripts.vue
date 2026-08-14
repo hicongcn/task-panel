@@ -31,7 +31,7 @@
             <el-button size="small" type="danger" @click="remove">删除</el-button>
           </div>
         </div>
-        <textarea v-model="current.content" class="editor" spellcheck="false"></textarea>
+        <MonacoEditor v-model="current.content" :language="editorLanguage" class="editor-wrap" />
       </template>
     </div>
 
@@ -43,15 +43,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
+import MonacoEditor from '@/components/MonacoEditor.vue'
+import { languageForPath } from '@/monaco'
 import { scriptApi, type ScriptNode } from '@/api/script'
 
 const tree = ref<ScriptNode[]>([])
 const current = reactive({ path: '', content: '' })
 const resultDrawer = ref(false)
 const result = reactive({ output: '', exit_code: 0, duration: 0, timed_out: false })
+
+const editorLanguage = computed(() => (current.path ? languageForPath(current.path) : 'plaintext'))
 
 async function refreshTree() {
   try {
@@ -167,6 +171,6 @@ async function remove() {
 .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #909399; }
 .editor-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #ebeef5; }
 .path { font-family: monospace; font-size: 13px; }
-.editor { flex: 1; border: none; outline: none; resize: none; padding: 12px; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; line-height: 1.5; }
+.editor-wrap { flex: 1; min-height: 0; padding: 8px; }
 .result-meta { margin-top: 8px; color: #909399; font-size: 13px; }
 </style>
