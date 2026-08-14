@@ -39,12 +39,13 @@
       </el-table-column>
       <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" class="op-btn" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
+          <div class="op-cell">
+          <el-button size="small" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
             {{ row.status === 'running' ? '停止' : '运行' }}
           </el-button>
-          <el-button size="small" class="op-btn" @click="viewLog(row)">日志</el-button>
+          <el-button size="small" @click="viewLog(row)">日志</el-button>
           <el-dropdown trigger="click" @command="(cmd: string) => onMore(cmd, row)">
-            <el-button size="small" class="op-btn">更多<el-icon class="more-arrow"><ArrowDown /></el-icon></el-button>
+            <el-button size="small">更多<el-icon class="more-arrow"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="toggle">{{ row.enabled ? '禁用' : '启用' }}</el-dropdown-item>
@@ -53,6 +54,7 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -271,7 +273,7 @@ async function remove(row: Task) {
 .cron-desc { color: #909399; font-size: 12px; margin-top: 4px; }
 .tag { margin-right: 4px; cursor: pointer; }
 .more-arrow { margin-left: 2px; font-size: 12px; }
-.op-btn { margin-right: 6px; }
+.op-cell { display: flex; align-items: center; gap: 6px; }
 .log-static { max-height: 60vh; }
 .tip { color: #909399; font-size: 12px; margin-top: 4px; line-height: 1.5; }
 </style>
