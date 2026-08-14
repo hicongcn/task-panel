@@ -72,3 +72,14 @@ html, body, #app {
   width: auto !important;
 }
 .el-table .cell { white-space: nowrap; }
+
+/* 带复制按钮的单元格:内容超长省略,复制按钮始终可见 */
+.copy-cell {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.copy-btn { flex-shrink: 0; }
