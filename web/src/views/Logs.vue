@@ -6,7 +6,7 @@
     </div>
     <el-table :data="logs" v-loading="loading" border stripe>
       <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="task_name" label="任务" min-width="140" />
+      <el-table-column prop="task_name" label="任务" min-width="130" />
       <el-table-column label="状态" width="90">
         <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag></template>
       </el-table-column>
@@ -14,7 +14,7 @@
       <el-table-column label="耗时" width="100">
         <template #default="{ row }">{{ row.duration ? row.duration.toFixed(2) + 's' : '—' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openDetail(row)">详情</el-button>
           <el-button size="small" @click="downloadRaw(row)">下载原文</el-button>

@@ -6,7 +6,7 @@
 
     <el-table :data="channels" v-loading="loading" border stripe>
       <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="name" label="名称" min-width="140" />
+      <el-table-column prop="name" label="名称" min-width="130" />
       <el-table-column label="类型" width="110">
         <template #default="{ row }">{{ notifyTypeLabel(row.type) }}</template>
       </el-table-column>

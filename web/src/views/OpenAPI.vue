@@ -21,8 +21,8 @@
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="175" />
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column prop="created_at" label="创建时间" width="180" />
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="warning" @click="onReset(row)">重置密钥</el-button>
           <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
