@@ -48,7 +48,24 @@ HTTP (handler)  →  业务 (service)  →  数据 (model / database)
 
 ## 配置
 
-两层:启动配置(`config.yaml` + 环境变量)与运行期 SQLite。MVP 只用启动配置;运行期配置表留待 v0.2(通知/备份等需要动态开关时引入)。
+两层:启动配置(`config.yaml` + 环境变量)与运行期配置表 `setting`(键值对)。v0.2 起运行期配置用于通知/定时备份等动态开关;写操作经 `SettingService`,定时备份设置变更会同步重注册 cron。
+
+## 通知 (`service/notify.go`)
+
+- 渠道配置存 `notify_channel` 表,`config` 为 JSON 文本,类型决定字段(webhook/telegram/bark/email)。
+- 发送为 best-effort:任务执行结束(成功/失败/终止)后由 `NotifyTaskResult` 异步推送至所有启用渠道;失败仅记日志,不影响任务结算。
+- email 密码在 API 响应中脱敏,更新时掩码视为"不修改"。
+
+## 备份 (`service/backup_service.go` + `pkg/backup`)
+
+- 备份文件 = tar.gz(数据库 + 脚本目录)经 AES-256-GCM 加密,密钥由 `config.BackupKey` 自动生成并持久化(`data/.backup_key`,0600)。
+- 恢复流程:解密解包到临时目录 → 自动备份当前状态(安全网)→ 停调度器/执行器 → 替换文件 → 重开数据库 → 重载调度器。
+- 定时备份:运行期设置(启用/cron/保留份数),独立 cron 实例,超量自动清理旧备份。
+
+## 审计 (`service/audit_service.go`)
+
+- `audit_logs` 表记录登录/任务/脚本/环境变量/通知/备份等关键操作,含用户名、动作、对象、详情、IP。
+- handler 层 `recordAudit` 统一埋点;查询支持按用户/动作过滤 + 分页。
 
 ## 部署形态
 
