@@ -13,20 +13,20 @@
     </div>
 
     <el-table :data="apps" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" width="70" show-overflow-tooltip />
-      <el-table-column label="Client ID" width="115">
+      <el-table-column prop="name" label="名称" show-overflow-tooltip />
+      <el-table-column label="Client ID">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.client_id }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="Client Secret" width="100">
+      <el-table-column label="Client Secret">
         <template #default="{ row }">
           <span class="copy-cell secret-text">••••••••</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="权限" width="90">
+      <el-table-column label="权限">
         <template #default="{ row }">
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>

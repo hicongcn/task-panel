@@ -43,12 +43,12 @@
     <el-card class="panel">
       <template #header><span>最近日志</span></template>
       <el-table :data="recent" border size="small">
-        <el-table-column prop="id" label="ID" width="50" />
-        <el-table-column prop="task_name" label="任务" width="100" show-overflow-tooltip />
-        <el-table-column label="状态" width="70">
+        <el-table-column prop="id" label="ID" />
+        <el-table-column prop="task_name" label="任务" show-overflow-tooltip />
+        <el-table-column label="状态">
           <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="started_at" label="时间" width="140" show-overflow-tooltip />
+        <el-table-column prop="started_at" label="时间" show-overflow-tooltip />
       </el-table>
     </el-card>
   </div>

@@ -22,16 +22,16 @@
     </div>
 
     <el-table :data="tasks" v-loading="loading" border stripe @selection-change="onSelection">
-      <el-table-column type="selection" width="45" />
-      <el-table-column prop="name" label="名称" width="70" show-overflow-tooltip />
-      <el-table-column prop="command" label="脚本" width="130" show-overflow-tooltip />
-      <el-table-column prop="cron_expression" label="Cron" width="100" show-overflow-tooltip />
-      <el-table-column label="标签" width="90">
+      <el-table-column type="selection" />
+      <el-table-column prop="name" label="名称" show-overflow-tooltip />
+      <el-table-column prop="command" label="脚本" show-overflow-tooltip />
+      <el-table-column prop="cron_expression" label="Cron" show-overflow-tooltip />
+      <el-table-column label="标签">
         <template #default="{ row }">
           <el-tag v-for="t in row.tags" :key="t" size="small" class="tag" @click="filterByTag(t)">{{ t }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="70">
+      <el-table-column label="状态">
         <template #default="{ row }">
           <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '启用' : '禁用' }}</el-tag>
           <el-tag v-if="row.status === 'running'" type="warning" size="small" style="margin-left:4px">运行中</el-tag>
