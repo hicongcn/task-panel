@@ -23,7 +23,7 @@
 
     <el-table :data="tasks" v-loading="loading" border stripe @selection-change="onSelection">
       <el-table-column type="selection" width="45" />
-      <el-table-column prop="name" label="名称" min-width="120" />
+      <el-table-column prop="name" label="名称" min-width="70" show-overflow-tooltip />
       <el-table-column prop="command" label="脚本" min-width="160" show-overflow-tooltip />
       <el-table-column prop="cron_expression" label="Cron" width="140" />
       <el-table-column label="标签" min-width="130">
