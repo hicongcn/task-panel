@@ -37,15 +37,22 @@
           <el-tag v-if="row.status === 'running'" type="warning" size="small" style="margin-left:4px">运行中</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="300" fixed="right">
+      <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
           <el-button size="small" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
             {{ row.status === 'running' ? '停止' : '运行' }}
           </el-button>
           <el-button size="small" @click="viewLog(row)">日志</el-button>
-          <el-button size="small" @click="toggle(row)">{{ row.enabled ? '禁用' : '启用' }}</el-button>
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+          <el-dropdown trigger="click" @command="(cmd: string) => onMore(cmd, row)">
+            <el-button size="small">更多<el-icon class="more-arrow"><ArrowDown /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="toggle">{{ row.enabled ? '禁用' : '启用' }}</el-dropdown-item>
+                <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -203,6 +210,13 @@ async function save() {
   } finally { formDialog.loading = false }
 }
 
+// onMore 处理"更多"下拉菜单操作。
+function onMore(cmd: string, row: Task) {
+  if (cmd === 'toggle') toggle(row)
+  else if (cmd === 'edit') openEdit(row)
+  else if (cmd === 'delete') remove(row)
+}
+
 // viewLog 查看最近一条日志(正在运行的显示实时流)。
 function viewLog(row: Task) {
   liveDrawer.taskId = row.id
@@ -237,5 +251,6 @@ async function remove(row: Task) {
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
 .cron-desc { color: #909399; font-size: 12px; margin-top: 4px; }
 .tag { margin-right: 4px; cursor: pointer; }
+.more-arrow { margin-left: 2px; font-size: 12px; }
 .tip { color: #909399; font-size: 12px; margin-top: 4px; line-height: 1.5; }
 </style>
