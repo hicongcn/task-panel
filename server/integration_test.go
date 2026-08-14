@@ -1571,3 +1571,70 @@ func TestNotifyTemplateAndEvent(t *testing.T) {
 }
 
 // ---------- 助手 ----------
+
+// ---------- 拖拽排序 / 移动 ----------
+
+func TestDragReorderAndMove(t *testing.T) {
+	token := getToken(t)
+
+	// 环境变量排序
+	mk := func(name string) uint {
+		t.Helper()
+		w := doRequest(t, "POST", "/api/v1/envs", token, map[string]interface{}{
+			"name": name, "value": "v", "group": "排序", "enabled": true,
+		})
+		assertCode(t, w, 201, 0, "create env "+name)
+		var c struct {
+			Data map[string]interface{} `json:"data"`
+		}
+		_ = json.Unmarshal(decodeResp(t, w).Data, &c)
+		return uint(c.Data["id"].(float64))
+	}
+	idA := mk("ORDER_A")
+	idB := mk("ORDER_B")
+
+	w := doRequest(t, "PUT", "/api/v1/envs/reorder", token, map[string]interface{}{"ids": []uint{idB, idA}})
+	assertCode(t, w, 200, 0, "reorder envs")
+	w = doRequest(t, "GET", "/api/v1/envs", token, nil)
+	assertCode(t, w, 200, 0, "list envs")
+	var list struct {
+		Data []struct {
+			ID   uint   `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &list)
+	if len(list.Data) < 2 || list.Data[0].Name != "ORDER_B" {
+		t.Fatalf("排序未生效: %+v", list.Data[:min(2, len(list.Data))])
+	}
+	// 清理
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/envs/%d", idA), token, nil)
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/envs/%d", idB), token, nil)
+
+	// 脚本移动
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "move_me.sh", "content": "#!/bin/bash\necho x\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/scripts/directory", token, map[string]string{
+		"path": "target_dir",
+	})
+	assertCode(t, w, 201, 0, "create dir")
+	w = doRequest(t, "PUT", "/api/v1/scripts/move", token, map[string]string{
+		"old_path": "move_me.sh", "new_dir": "target_dir",
+	})
+	assertCode(t, w, 200, 0, "move script")
+	w = doRequest(t, "GET", "/api/v1/scripts/tree", token, nil)
+	if !strings.Contains(w.Body.String(), "target_dir") || !strings.Contains(w.Body.String(), "move_me.sh") {
+		t.Fatalf("移动后树不符: %s", w.Body.String())
+	}
+	// 移动到不存在目录 → 400
+	w = doRequest(t, "PUT", "/api/v1/scripts/move", token, map[string]string{
+		"old_path": "target_dir/move_me.sh", "new_dir": "no_such_dir",
+	})
+	assertCode(t, w, 400, 400, "move to missing dir rejected")
+	// 清理
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=target_dir", token, nil)
+}
+
+// ---------- 助手 ----------

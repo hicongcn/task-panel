@@ -113,6 +113,18 @@ func (s *EnvService) BatchDelete(ids []uint) (int64, error) {
 	return r.RowsAffected, r.Error
 }
 
+// Reorder 按传入 ID 顺序重排(sort_order 递减,列表按 DESC 展示即传入顺序)。
+func (s *EnvService) Reorder(ids []uint) error {
+	n := len(ids)
+	for i, id := range ids {
+		if err := database.DB.Model(&model.EnvVar{}).Where("id = ?", id).
+			Update("sort_order", n-i).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // BuildTaskEnv 返回所有已启用环境变量,供任务执行注入子进程。
 func (s *EnvService) BuildTaskEnv() map[string]string {
 	var envs []model.EnvVar

@@ -18,6 +18,8 @@ export const scriptApi = {
   remove: (path: string) => request.delete('/scripts', { params: { path } }),
   rename: (oldPath: string, newName: string) =>
     request.put('/scripts/rename', { old_path: oldPath, new_name: newName }),
+  move: (oldPath: string, newDir: string) =>
+    request.put('/scripts/move', { old_path: oldPath, new_dir: newDir }),
   // 后端脚本调试最长 60 秒,单独放大超时避免 30s 默认超时误报。
   run: (path: string) => request.post('/scripts/run', { path }, { timeout: 90000 }),
   runCode: (code: string, language: string) =>

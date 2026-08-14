@@ -4,8 +4,12 @@
       <el-input v-model="keyword" placeholder="搜索名称/备注" clearable style="width:220px" @keyup.enter="load" @clear="load" />
       <el-button @click="load">刷新</el-button>
       <el-button type="primary" @click="openCreate">新建变量</el-button>
+      <span class="hint">拖动左侧把手可调整顺序</span>
     </div>
-    <el-table :data="envs" v-loading="loading" border stripe>
+    <el-table ref="tableRef" :data="envs" v-loading="loading" border stripe row-key="id">
+      <el-table-column width="36" align="center">
+        <template #default><span class="drag-handle">⠿</span></template>
+      </el-table-column>
       <el-table-column prop="name" label="名称" min-width="140" />
       <el-table-column prop="value_masked" label="值(脱敏)" min-width="160" />
       <el-table-column prop="group" label="分组" width="120" />
@@ -38,13 +42,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import Sortable from 'sortablejs'
 import { envApi, type EnvVar } from '@/api/env'
 
 const envs = ref<EnvVar[]>([])
 const loading = ref(false)
 const keyword = ref('')
+const tableRef = ref()
+let sortable: Sortable | null = null
 
 const formDialog = reactive({
   visible: false, loading: false, id: 0,
@@ -56,9 +63,32 @@ async function load() {
   try {
     const res: any = await envApi.list(keyword.value)
     envs.value = res.data.data || []
+    await nextTick()
+    initSortable()
   } catch {} finally { loading.value = false }
 }
+
+function initSortable() {
+  sortable?.destroy()
+  const el = tableRef.value?.$el?.querySelector('.el-table__body-wrapper tbody')
+  if (!el) return
+  sortable = Sortable.create(el, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: async () => {
+      const ids = envs.value.map((e) => e.id)
+      try {
+        await envApi.reorder(ids)
+        ElMessage.success('排序已保存')
+      } catch {
+        load()
+      }
+    },
+  })
+}
+
 onMounted(load)
+onBeforeUnmount(() => sortable?.destroy())
 
 function openCreate() {
   formDialog.id = 0
@@ -92,5 +122,7 @@ async function remove(row: EnvVar) {
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+.hint { color: #909399; font-size: 12px; }
+.drag-handle { cursor: grab; color: #909399; font-size: 14px; user-select: none; }
 </style>

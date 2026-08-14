@@ -205,6 +205,46 @@ func (h *ScriptHandler) Rename(c *gin.Context) {
 	response.Success(c, gin.H{"message": "已重命名"})
 }
 
+// Move PUT /scripts/move {old_path, new_dir} 把文件移动到脚本目录内其他目录。
+func (h *ScriptHandler) Move(c *gin.Context) {
+	var req struct {
+		OldPath string `json:"old_path" binding:"required"`
+		NewDir  string `json:"new_dir" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误")
+		return
+	}
+	base := scriptsDir()
+	oldFull, err := pathutil.SafeJoin(base, req.OldPath, true)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	// 目标必须是脚本目录内的已存在目录
+	newDirFull, err := pathutil.SafeJoin(base, req.NewDir, false)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	info, err := os.Stat(newDirFull)
+	if err != nil || !info.IsDir() {
+		response.BadRequest(c, "目标目录不存在")
+		return
+	}
+	dest := filepath.Join(newDirFull, filepath.Base(oldFull))
+	if _, err := os.Stat(dest); err == nil {
+		response.BadRequest(c, "目标位置已存在同名文件")
+		return
+	}
+	if err := os.Rename(oldFull, dest); err != nil {
+		response.InternalError(c, "移动失败")
+		return
+	}
+	recordAudit(c, model.AuditActionScriptRename, req.OldPath+" -> "+filepath.Join(req.NewDir, filepath.Base(oldFull)), "")
+	response.Success(c, gin.H{"message": "已移动"})
+}
+
 // Upload POST /scripts/upload  (multipart: file, path=目标目录相对路径)
 func (h *ScriptHandler) Upload(c *gin.Context) {
 	file, err := c.FormFile("file")
@@ -328,6 +368,7 @@ func (h *ScriptHandler) RegisterRoutes(r *gin.RouterGroup) {
 		scripts.POST("/directory", h.CreateDir)
 		scripts.DELETE("", h.Delete)
 		scripts.PUT("/rename", h.Rename)
+		scripts.PUT("/move", h.Move)
 		scripts.POST("/upload", h.Upload)
 		scripts.GET("/download", h.Download)
 		scripts.POST("/run", h.Run)

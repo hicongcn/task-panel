@@ -16,7 +16,7 @@
           </el-dropdown>
         </div>
       </div>
-      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current @node-click="onSelect" />
+      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current draggable @node-click="onSelect" @node-drop="onNodeDrop" />
     </div>
 
     <div class="editor-pane">
@@ -64,6 +64,25 @@ async function refreshTree() {
   } catch {}
 }
 refreshTree()
+
+// onNodeDrop 拖拽节点移动:仅支持把文件/目录拖入目录(inner)。
+async function onNodeDrop(dragging: any, drop: any, dropType: string) {
+  if (dropType !== 'inner') {
+    ElMessage.warning('请把文件拖入目标目录内')
+    return
+  }
+  if (dragging.data?.type === 'file' && drop.data?.type === 'dir') {
+    try {
+      await scriptApi.move(dragging.data.key, drop.data.key)
+      ElMessage.success('已移动')
+      refreshTree()
+    } catch (e: any) {
+      ElMessage.error(e?.response?.data?.message || '移动失败')
+    }
+  } else if (dragging.data?.type === 'dir' && drop.data?.type === 'dir') {
+    ElMessage.warning('目录移动暂不支持,请使用重命名')
+  }
+}
 
 async function onSelect(node: ScriptNode) {
   if (node.type !== 'file') return

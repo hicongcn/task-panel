@@ -22,4 +22,5 @@ export const envApi = {
     request.put(`/envs/${id}`, data),
   remove: (id: number) => request.delete(`/envs/${id}`),
   batchDelete: (ids: number[]) => request.delete('/envs/batch', { data: { ids } }),
+  reorder: (ids: number[]) => request.put('/envs/reorder', { ids }),
 }
