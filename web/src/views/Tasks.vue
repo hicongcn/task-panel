@@ -274,6 +274,7 @@ async function remove(row: Task) {
 .tag { margin-right: 4px; cursor: pointer; }
 .more-arrow { margin-left: 2px; font-size: 12px; }
 .op-cell { display: flex; align-items: center; gap: 6px; }
+.op-cell :deep(.el-button + .el-button) { margin-left: 0; }
 .log-static { max-height: 60vh; }
 .tip { color: #909399; font-size: 12px; margin-top: 4px; line-height: 1.5; }
 </style>
