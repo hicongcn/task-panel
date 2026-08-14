@@ -13,3 +13,6 @@ web/dist/
 # 通用
 .DS_Store
 *.log
+
+# 本地数据备份(不进 git)
+server/data_backup_*/
