@@ -41,6 +41,9 @@ func main() {
 	// 启动定时备份调度(根据运行期设置)
 	service.GetBackupService().InitScheduledBackup()
 
+	// 启动系统监控采样
+	service.GetSysMonitor().Start()
+
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}

@@ -59,6 +59,9 @@ func TestMain(m *testing.M) {
 	testEngine.Use(gin.Logger(), gin.Recovery())
 	router.Setup(testEngine)
 
+	// 与 main.go 一致:启动监控采样(集成测试断言 stats 用)
+	service.GetSysMonitor().Start()
+
 	code := m.Run()
 	os.Exit(code)
 }
@@ -875,6 +878,39 @@ func TestDeps(t *testing.T) {
 		assertCode(t, w, 200, 0, "npm 列表")
 	} else {
 		assertCode(t, w, 400, 400, "无 npm 友好错误")
+	}
+}
+
+// ---------- 系统监控 ----------
+
+func TestSystemStats(t *testing.T) {
+	token := getToken(t)
+	w := doRequest(t, "GET", "/api/v1/system/stats", token, nil)
+	assertCode(t, w, 200, 0, "system stats")
+	var st struct {
+		Data struct {
+			MemTotal   uint64  `json:"mem_total"`
+			DiskTotal  uint64  `json:"disk_total"`
+			Hostname   string  `json:"hostname"`
+			Uptime     uint64  `json:"uptime_seconds"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(decodeResp(t, w).Data, &st); err != nil {
+		t.Fatalf("decode stats: %v", err)
+	}
+	if st.Data.MemTotal == 0 {
+		t.Fatal("mem_total 应为正数")
+	}
+	if st.Data.DiskTotal == 0 {
+		t.Fatal("disk_total 应为正数")
+	}
+	if st.Data.Hostname == "" {
+		t.Fatal("hostname 不应为空")
+	}
+	// 未登录应 401
+	w = doRequest(t, "GET", "/api/v1/system/stats", "", nil)
+	if w.Code != 401 {
+		t.Fatalf("未登录应 401, got %d", w.Code)
 	}
 }
 

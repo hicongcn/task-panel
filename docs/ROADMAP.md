@@ -26,13 +26,14 @@
 
 > 已决定不做:Git 订阅(自动拉取脚本)、多用户角色体系(保持单管理员)。
 
-## v1.0
+## v1.0(当前)
 
-- [ ] 2FA / TOTP
-- [ ] Open API(AppKey/Secret + scope)
+- [x] 系统监控仪表板(CPU/内存/磁盘)
+- [ ] 2FA / TOTP(登录双因素)
 - [ ] CLI 运维工具(账号恢复 / 日志清理 / 任务触发)
-- [ ] Windows 免安装打包
-- [ ] 系统监控仪表板(CPU/内存/磁盘)
+- [ ] Open API(参考青龙结构:应用管理 + client_id/secret + token + scopes)
+
+> 已决定不做:Windows 免安装打包。
 
 ## 设计原则
 
