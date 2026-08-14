@@ -21,6 +21,14 @@ const emit = defineEmits<{
 const el = ref<HTMLDivElement>()
 let editor: monacoTypes.editor.IStandaloneCodeEditor | null = null
 let applyingExternal = false
+let titleObserver: MutationObserver | null = null
+
+// find widget 按钮的原生 title 悬停提示在屏幕边缘会溢出视口、遮挡点击,
+// 这里在查找框出现时移除按钮的 title,仅保留 aria-label。
+function stripFindTitles() {
+  if (!el.value) return
+  el.value.querySelectorAll('.find-widget [title]').forEach((b) => b.removeAttribute('title'))
+}
 
 onMounted(() => {
   if (!el.value) return
@@ -59,6 +67,10 @@ onMounted(() => {
     if (applyingExternal || !editor) return
     emit('update:modelValue', editor.getValue())
   })
+  // 监听查找框出现,清理按钮 title
+  titleObserver = new MutationObserver(() => stripFindTitles())
+  titleObserver.observe(el.value, { childList: true, subtree: true })
+  stripFindTitles()
 })
 
 watch(() => props.language, (lang) => {
@@ -79,6 +91,8 @@ watch(() => props.modelValue, (val) => {
 })
 
 onBeforeUnmount(() => {
+  titleObserver?.disconnect()
+  titleObserver = null
   editor?.dispose()
   editor = null
 })
