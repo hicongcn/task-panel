@@ -41,7 +41,7 @@
     <el-dialog v-model="formDialog.visible" :title="formDialog.id ? '编辑变量' : '新建变量'" width="500px">
       <el-form label-width="90px">
         <el-form-item label="名称"><el-input v-model="formDialog.form.name" :disabled="!!formDialog.id" placeholder="MY_VAR" /></el-form-item>
-        <el-form-item label="值"><el-input v-model="formDialog.form.value" type="password" show-password /></el-form-item>
+        <el-form-item label="值"><el-input v-model="formDialog.form.value" /></el-form-item>
         <el-form-item label="分组"><el-input v-model="formDialog.form.group" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="formDialog.form.remark" /></el-form-item>
         <el-form-item label="启用"><el-switch v-model="formDialog.form.enabled" /></el-form-item>
