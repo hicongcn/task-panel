@@ -14,7 +14,9 @@
           <el-switch :model-value="row.enabled" @change="(v: boolean) => onToggle(row, v)" />
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" show-overflow-tooltip />
+      <el-table-column label="创建时间" show-overflow-tooltip>
+        <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="200" >
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
@@ -113,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { fmtTime } from '@/utils/time'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyApi, notifyTypeLabel, type NotifyChannel } from '@/api/notify'
 

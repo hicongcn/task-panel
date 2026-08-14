@@ -48,7 +48,9 @@
         <el-table-column label="状态">
           <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="started_at" label="时间" show-overflow-tooltip />
+        <el-table-column label="时间" show-overflow-tooltip>
+        <template #default="{ row }">{{ fmtTime(row.started_at) }}</template>
+      </el-table-column>
       </el-table>
     </el-card>
   </div>
@@ -56,6 +58,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { fmtTime } from '@/utils/time'
 import { taskApi } from '@/api/task'
 import { envApi } from '@/api/env'
 import { logApi, type TaskLog } from '@/api/log'

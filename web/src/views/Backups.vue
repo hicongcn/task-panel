@@ -36,7 +36,9 @@
       <el-table-column label="大小">
         <template #default="{ row }">{{ formatSize(row.size) }}</template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" show-overflow-tooltip />
+      <el-table-column label="创建时间" show-overflow-tooltip>
+        <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="200" >
         <template #default="{ row }">
           <el-button size="small" @click="onDownload(row)">下载</el-button>
@@ -50,6 +52,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { fmtTime } from '@/utils/time'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { backupApi, formatSize, type BackupInfo } from '@/api/backup'
 

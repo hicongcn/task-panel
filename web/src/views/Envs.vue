@@ -159,7 +159,7 @@ async function copy(text: string) {
 // fmtTime 格式化时间
 function fmtTime(t?: string) {
   if (!t) return '-'
-  return t.replace('T', ' ').slice(0, 16)
+  return t.replace('T', ' ').slice(0, 19)
 }
 </script>
 

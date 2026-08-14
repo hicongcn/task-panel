@@ -17,7 +17,9 @@
       <el-table-column prop="resource" label="对象" show-overflow-tooltip />
       <el-table-column prop="detail" label="详情" show-overflow-tooltip />
       <el-table-column prop="ip" label="IP" />
-      <el-table-column prop="created_at" label="时间" show-overflow-tooltip />
+      <el-table-column label="时间" show-overflow-tooltip>
+        <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
+      </el-table-column>
     </el-table>
 
     <div class="pager">
@@ -34,6 +36,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { fmtTime } from '@/utils/time'
 import { auditApi, actionLabel, type AuditLog } from '@/api/audit'
 
 const logs = ref<AuditLog[]>([])

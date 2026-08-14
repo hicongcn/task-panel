@@ -135,7 +135,7 @@ async function downloadRaw(row: TaskLog | null) {
 
 function fmtTime(t?: string) {
   if (!t) return '-'
-  return t.replace('T', ' ').slice(0, 16)
+  return t.replace('T', ' ').slice(0, 19)
 }
 
 function statusText(s: string) {
