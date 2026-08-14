@@ -26,9 +26,9 @@
           <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="权限" width="180">
+      <el-table-column label="权限" width="260">
         <template #default="{ row }">
-          <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
+          <el-tag v-for="s in scopesOf(row)" :key="s" size="small" class="scope-tag">{{ scopeLabels[s] || s }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200" >
@@ -160,6 +160,7 @@ onMounted(load)
 <style scoped>
 .intro { margin-bottom: 14px; }
 .copy-cell { vertical-align: middle; font-family: monospace; }
+.scope-tag { margin-right: 2px; padding: 0 5px; height: 20px; line-height: 20px; }
 .secret-text { letter-spacing: 2px; }
 .copy-btn { margin-left: 2px; }
 .intro code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
