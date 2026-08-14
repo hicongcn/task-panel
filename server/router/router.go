@@ -9,6 +9,7 @@ import (
 )
 
 func Setup(engine *gin.Engine) {
+	engine.Use(middleware.IPWhitelist()) // 访问白名单(配置了才生效),须最靠前
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS())
 

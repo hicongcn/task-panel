@@ -57,6 +57,7 @@ cd web && npm install && npm run dev          # http://localhost:5173
 | 前端目录 | `WEB_DIR` | 留空则后端不托管(走反代) |
 | JWT 密钥 | `JWT_SECRET` | 留空自动生成持久化 |
 | CORS 白名单 | `CORS_ORIGINS` | 逗号分隔 |
+| 访问白名单 | `IP_WHITELIST` | 逗号分隔的 IP/CIDR,如 `192.168.1.0/24,10.0.0.5`;留空不启用 |
 | 可信代理网段 | `TRUSTED_PROXY_CIDRS` | 默认仅回环,反代后需显式配置 |
 
 ## 测试

@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,6 +112,65 @@ func SecurityHeaders() gin.HandlerFunc {
 		h.Set("Referrer-Policy", "no-referrer")
 		c.Next()
 	}
+}
+
+// IPWhitelist 校验客户端真实 IP 是否在允许列表内。
+// 列表为空时放行(默认不启用);支持单个 IP 或 CIDR(如 192.168.1.0/24)。
+// 运行时读取 config.C,便于测试动态调整;IP 解析复用 ResolveClientIP
+// (仅信任可信代理网段转发头,防伪造)。
+func IPWhitelist() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if config.C == nil || len(config.C.Security.IPWhitelist) == 0 {
+			c.Next()
+			return
+		}
+		nets := parseIPWhitelist(config.C.Security.IPWhitelist)
+		if len(nets) == 0 {
+			c.Next()
+			return
+		}
+		clientIP := net.ParseIP(ResolveClientIP(c))
+		if clientIP == nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "无法解析客户端 IP"})
+			return
+		}
+		for _, n := range nets {
+			if n.Contains(clientIP) {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "IP 不在白名单内"})
+	}
+}
+
+// parseIPWhitelist 解析配置项为网段列表(单个 IP 视为 /32 或 /128)。
+func parseIPWhitelist(items []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if strings.Contains(item, "/") {
+			if _, n, err := net.ParseCIDR(item); err == nil {
+				nets = append(nets, n)
+			}
+			continue
+		}
+		if ip := net.ParseIP(item); ip != nil {
+			if ip.To4() != nil {
+				if _, n, err := net.ParseCIDR(item + "/32"); err == nil {
+					nets = append(nets, n)
+				}
+			} else {
+				if _, n, err := net.ParseCIDR(item + "/128"); err == nil {
+					nets = append(nets, n)
+				}
+			}
+		}
+	}
+	return nets
 }
 
 // MaxBodySize 限制请求体大小,超出时读取会失败(ShouldBindJSON 报错 → 400)。

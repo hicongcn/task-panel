@@ -27,6 +27,7 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	Data     DataConfig     `yaml:"data"`
 	Backup   BackupConfig   `yaml:"backup"`
+	Security SecurityConfig `yaml:"security"`
 	CORS     CORSConfig     `yaml:"cors"`
 }
 
@@ -53,6 +54,12 @@ type DataConfig struct {
 
 type BackupConfig struct {
 	Dir string `yaml:"dir"`
+}
+
+// SecurityConfig 安全相关配置。
+type SecurityConfig struct {
+	// IPWhitelist 访问白名单:逗号分隔的单个 IP 或 CIDR;为空表示不启用(允许所有来源)。
+	IPWhitelist []string `yaml:"ip_whitelist"`
 }
 
 type CORSConfig struct {
@@ -96,6 +103,13 @@ func Load(path string) (*Config, error) {
 		for _, item := range strings.Split(v, ",") {
 			if item = strings.TrimSpace(item); item != "" {
 				cfg.CORS.Origins = append(cfg.CORS.Origins, item)
+			}
+		}
+	}
+	if v := os.Getenv("IP_WHITELIST"); v != "" {
+		for _, item := range strings.Split(v, ",") {
+			if item = strings.TrimSpace(item); item != "" {
+				cfg.Security.IPWhitelist = append(cfg.Security.IPWhitelist, item)
 			}
 		}
 	}

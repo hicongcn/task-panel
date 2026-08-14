@@ -805,6 +805,36 @@ func TestBackupRestore(t *testing.T) {
 	_ = os.Remove(backupPath)
 }
 
+// ---------- IP 白名单 ----------
+
+func TestIPWhitelist(t *testing.T) {
+	defer func() { config.C.Security.IPWhitelist = nil }()
+
+	// httptest 请求默认 RemoteAddr 为 192.0.2.1:1234,可信代理默认仅回环,XFF 无效。
+	check := func(want int, desc string) {
+		t.Helper()
+		w := doRequest(t, "GET", "/api/v1/health", "", nil)
+		if w.Code != want {
+			t.Fatalf("%s: http = %d, want %d (body=%s)", desc, w.Code, want, w.Body.String())
+		}
+	}
+
+	config.C.Security.IPWhitelist = []string{"192.0.2.0/24"}
+	check(200, "CIDR 内放行")
+
+	config.C.Security.IPWhitelist = []string{"127.0.0.0/8"}
+	check(403, "CIDR 外拒绝")
+
+	config.C.Security.IPWhitelist = []string{"192.0.2.1"}
+	check(200, "单个 IP 放行")
+
+	config.C.Security.IPWhitelist = []string{"10.0.0.0/8"}
+	check(403, "单个 IP 外拒绝")
+
+	config.C.Security.IPWhitelist = nil
+	check(200, "空列表全部放行")
+}
+
 // ---------- 助手 ----------
 
 var (
