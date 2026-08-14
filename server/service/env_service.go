@@ -48,6 +48,26 @@ func (s *EnvService) List(keyword, group string) []map[string]interface{} {
 	return out
 }
 
+// ListPlain 明文返回变量值(面板自用场景,用户要求直接显示)。
+func (s *EnvService) ListPlain(keyword, group string) []map[string]interface{} {
+	q := database.DB.Model(&model.EnvVar{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("name LIKE ? OR remark LIKE ?", like, like)
+	}
+	if group != "" {
+		q = q.Where("env_group = ?", group)
+	}
+	var envs []model.EnvVar
+	q.Order("sort_order DESC, created_at ASC").Find(&envs)
+
+	out := make([]map[string]interface{}, len(envs))
+	for i, e := range envs {
+		out[i] = ginEnvDict(e, false)
+	}
+	return out
+}
+
 // Groups 返回所有出现过的分组。
 func (s *EnvService) Groups() []string {
 	var groups []string
@@ -145,6 +165,7 @@ func ginEnvDict(e model.EnvVar, masked bool) map[string]interface{} {
 		"enabled":    e.Enabled,
 		"sort_order": e.SortOrder,
 		"created_at": e.CreatedAt,
+		"updated_at": e.UpdatedAt,
 	}
 	if masked {
 		d["value_masked"] = MaskValue(e.Value)

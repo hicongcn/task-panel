@@ -10,16 +10,29 @@
       <el-table-column width="36" align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
-      <el-table-column prop="name" label="名称" min-width="140" />
-      <el-table-column prop="value_masked" label="值(脱敏)" min-width="160" />
-      <el-table-column prop="group" label="分组" width="120" />
-      <el-table-column prop="remark" label="备注" min-width="120" />
+      <el-table-column label="名称" min-width="150">
+        <template #default="{ row }">
+          <span class="copy-cell">{{ row.name }}</span>
+          <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="值" min-width="180">
+        <template #default="{ row }">
+          <span class="copy-cell value-text">{{ row.value }}</span>
+          <el-button link size="small" class="copy-btn" @click="copy(row.value)"><el-icon><CopyDocument /></el-icon></el-button>
+        </template>
+      </el-table-column>
+      <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+      <el-table-column label="更新时间" width="150">
+        <template #default="{ row }">{{ fmtTime(row.updated_at) }}</template>
+      </el-table-column>
       <el-table-column label="启用" width="80">
         <template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" @click="toggle(row)">{{ row.enabled ? '禁用' : '启用' }}</el-button>
           <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -45,6 +58,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sortable from 'sortablejs'
+import { CopyDocument } from '@element-plus/icons-vue'
 import { envApi, type EnvVar } from '@/api/env'
 
 const envs = ref<EnvVar[]>([])
@@ -119,10 +133,41 @@ async function remove(row: EnvVar) {
     await envApi.remove(row.id); ElMessage.success('已删除'); load()
   } catch {}
 }
+
+// toggle 启用/禁用
+async function toggle(row: EnvVar) {
+  try {
+    await envApi.update(row.id, { name: row.name, enabled: !row.enabled })
+    ElMessage.success(row.enabled ? '已禁用' : '已启用')
+    load()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '操作失败')
+  }
+}
+
+// copy 复制文本
+async function copy(text: string) {
+  if (!text) return ElMessage.warning('内容为空')
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.warning('复制失败,请手动选择')
+  }
+}
+
+// fmtTime 格式化时间
+function fmtTime(t?: string) {
+  if (!t) return '-'
+  return t.replace('T', ' ').slice(0, 16)
+}
 </script>
 
 <style scoped>
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
 .hint { color: #909399; font-size: 12px; }
 .drag-handle { cursor: grab; color: #909399; font-size: 14px; user-select: none; }
+.copy-cell { vertical-align: middle; }
+.value-text { font-family: monospace; font-size: 12.5px; }
+.copy-btn { margin-left: 2px; }
 </style>

@@ -21,7 +21,8 @@ func NewEnvHandler() *EnvHandler {
 }
 
 func (h *EnvHandler) List(c *gin.Context) {
-	data := h.svc.List(c.Query("keyword"), c.Query("group"))
+	// 明文返回(面板为单管理员自用环境,用户要求直接显示值)
+	data := h.svc.ListPlain(c.Query("keyword"), c.Query("group"))
 	response.Success(c, gin.H{"data": data, "total": len(data)})
 }
 
