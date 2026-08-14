@@ -129,13 +129,18 @@ func (h *BackupHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误")
 		return
 	}
+	changed := false
 	for k, v := range req {
 		if k == "backup_schedule_enabled" || k == "backup_schedule_cron" || k == "backup_keep" {
 			if err := h.setting.Set(k, v); err != nil {
 				response.InternalError(c, err.Error())
 				return
 			}
+			changed = true
 		}
+	}
+	if changed {
+		service.GetBackupService().UpdateScheduledBackup()
 	}
 	recordAudit(c, model.AuditActionBackupSetting, "backup_settings", "")
 	response.Success(c, gin.H{"message": "已保存"})

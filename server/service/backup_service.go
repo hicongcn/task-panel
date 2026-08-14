@@ -316,10 +316,6 @@ func (s *SettingService) Get(key, defaultVal string) string {
 }
 
 func (s *SettingService) Set(key, value string) error {
-	// 更新定时备份设置时同步更新 cron
-	if key == settingBackupSchedule || key == settingBackupCron || key == settingBackupKeep {
-		defer GetBackupService().UpdateScheduledBackup()
-	}
 	return setSetting(key, value)
 }
 
