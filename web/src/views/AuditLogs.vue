@@ -9,15 +9,15 @@
     </div>
 
     <el-table :data="logs" v-loading="loading" border stripe>
-      <el-table-column prop="id" label="ID" min-width="60" />
-      <el-table-column prop="username" label="用户" min-width="80" />
-      <el-table-column label="动作" min-width="90">
+      <el-table-column prop="id" label="ID" min-width="40" />
+      <el-table-column prop="username" label="用户" min-width="50" />
+      <el-table-column label="动作" min-width="70">
         <template #default="{ row }">{{ actionLabel(row.action) }}</template>
       </el-table-column>
-      <el-table-column prop="resource" label="对象" min-width="120" show-overflow-tooltip />
-      <el-table-column prop="detail" label="详情" min-width="100" show-overflow-tooltip />
-      <el-table-column prop="ip" label="IP" min-width="100" />
-      <el-table-column prop="created_at" label="时间" min-width="140" show-overflow-tooltip />
+      <el-table-column prop="resource" label="对象" min-width="60" show-overflow-tooltip />
+      <el-table-column prop="detail" label="详情" min-width="60" show-overflow-tooltip />
+      <el-table-column prop="ip" label="IP" min-width="70" />
+      <el-table-column prop="created_at" label="时间" min-width="120" show-overflow-tooltip />
     </el-table>
 
     <div class="pager">

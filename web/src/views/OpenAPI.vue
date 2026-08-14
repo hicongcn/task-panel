@@ -13,14 +13,14 @@
     </div>
 
     <el-table :data="apps" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="60" show-overflow-tooltip />
-      <el-table-column prop="client_id" label="Client ID" min-width="140" show-overflow-tooltip />
-      <el-table-column label="权限范围" min-width="140">
+      <el-table-column prop="name" label="名称" min-width="40" show-overflow-tooltip />
+      <el-table-column prop="client_id" label="Client ID" min-width="80" show-overflow-tooltip />
+      <el-table-column label="权限范围" min-width="70">
         <template #default="{ row }">
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" min-width="140" show-overflow-tooltip />
+      <el-table-column prop="created_at" label="创建时间" min-width="120" show-overflow-tooltip />
       <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="warning" @click="onReset(row)">重置密钥</el-button>
