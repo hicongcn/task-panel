@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # ---- 后端构建 ----
-FROM golang:1.22-alpine AS backend-builder
+FROM golang:1.26-alpine AS backend-builder
 WORKDIR /src
 COPY server/go.* ./
 RUN go mod download
@@ -18,7 +18,8 @@ RUN go build -ldflags="-s -w" -o /out/taskpanel-server .
 
 # ---- 运行时 ----
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata bash python3 nodejs git curl \
+# py3-pip 供依赖管理(Python/pip3)使用;nodejs 自带 npm
+RUN apk add --no-cache ca-certificates tzdata bash python3 py3-pip nodejs git curl \
     && addgroup -S app && adduser -S -G app app
 WORKDIR /app
 COPY --from=backend-builder /out/taskpanel-server ./
