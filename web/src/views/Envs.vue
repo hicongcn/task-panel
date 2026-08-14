@@ -10,7 +10,7 @@
       <el-table-column width="36" align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
-      <el-table-column label="名称" min-width="100">
+      <el-table-column label="名称" min-width="60">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.name }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.name)"><el-icon><CopyDocument /></el-icon></el-button>

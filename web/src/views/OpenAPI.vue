@@ -13,7 +13,7 @@
     </div>
 
     <el-table :data="apps" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="100" show-overflow-tooltip />
+      <el-table-column prop="name" label="名称" min-width="60" show-overflow-tooltip />
       <el-table-column prop="client_id" label="Client ID" min-width="140" show-overflow-tooltip />
       <el-table-column label="权限范围" min-width="140">
         <template #default="{ row }">

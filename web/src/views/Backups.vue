@@ -32,7 +32,7 @@
     </div>
 
     <el-table :data="backups" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="备份文件" min-width="140" show-overflow-tooltip />
+      <el-table-column prop="name" label="备份文件" min-width="80" show-overflow-tooltip />
       <el-table-column label="大小" min-width="80">
         <template #default="{ row }">{{ formatSize(row.size) }}</template>
       </el-table-column>

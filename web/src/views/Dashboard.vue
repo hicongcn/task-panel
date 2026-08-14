@@ -44,7 +44,7 @@
       <template #header><span>最近日志</span></template>
       <el-table :data="recent" border size="small">
         <el-table-column prop="id" label="ID" min-width="60" />
-        <el-table-column prop="task_name" label="任务" min-width="100" show-overflow-tooltip />
+        <el-table-column prop="task_name" label="任务" min-width="60" show-overflow-tooltip />
         <el-table-column label="状态" min-width="70">
           <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag></template>
         </el-table-column>
