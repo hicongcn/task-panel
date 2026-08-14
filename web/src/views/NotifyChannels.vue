@@ -5,17 +5,17 @@
     </div>
 
     <el-table :data="channels" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="140" />
-      <el-table-column label="类型" width="110">
+      <el-table-column prop="name" label="名称" min-width="100" show-overflow-tooltip />
+      <el-table-column label="类型" min-width="80">
         <template #default="{ row }">{{ notifyTypeLabel(row.type) }}</template>
       </el-table-column>
-      <el-table-column label="启用" width="90">
+      <el-table-column label="启用" min-width="70">
         <template #default="{ row }">
           <el-switch :model-value="row.enabled" @change="(v: boolean) => onToggle(row, v)" />
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="created_at" label="创建时间" min-width="140" show-overflow-tooltip />
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button size="small" type="warning" @click="onTest(row)">测试</el-button>
