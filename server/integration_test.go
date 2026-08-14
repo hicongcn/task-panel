@@ -660,6 +660,73 @@ func TestNotifyChannels(t *testing.T) {
 
 // ---------- 任务结果通知(端到端) ----------
 
+// TestTaskFailedNotify 命令解析失败(脚本不存在)也应发送失败通知。
+func TestTaskFailedNotify(t *testing.T) {
+	token := getToken(t)
+
+	var mu sync.Mutex
+	var received []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		received = append(received, m)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	w := doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "失败通知", "type": "webhook", "enabled": true,
+		"config": map[string]interface{}{"url": srv.URL},
+	})
+	assertCode(t, w, 201, 0, "create webhook")
+	var ch struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &ch)
+	channelID := uint(ch.Data["id"].(float64))
+
+	// 先建脚本再建任务,随后删除脚本 → 运行触发"命令解析失败"路径
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "temp_fail.sh", "content": "#!/bin/bash\necho hi\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "失败任务", "command": "temp_fail.sh", "cron_expression": "0 3 * * *", "enabled": false,
+	})
+	assertCode(t, w, 201, 0, "create task")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	taskID := uint(created.Data["id"].(float64))
+
+	// 删除脚本后运行 → 解析失败路径
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=temp_fail.sh", token, nil)
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/tasks/%d/run", taskID), token, nil)
+	assertCode(t, w, 200, 0, "run task")
+
+	waitFor(t, 15*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) > 0
+	}, "failed notification")
+
+	mu.Lock()
+	got := received
+	mu.Unlock()
+	if len(got) == 0 {
+		t.Fatal("未收到失败通知")
+	}
+	if got[0]["title"] != "任务执行失败" {
+		t.Fatalf("通知标题应为失败: %+v", got[0])
+	}
+
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", channelID), token, nil)
+}
+
 func TestTaskResultNotify(t *testing.T) {
 	token := getToken(t)
 

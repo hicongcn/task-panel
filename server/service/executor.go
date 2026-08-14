@@ -333,6 +333,9 @@ func (e *Executor) finishTaskWithError(task *model.Task, err error) {
 		StartedAt: now, EndedAt: &now,
 	}
 	database.DB.Create(taskLog)
+
+	// 失败也要发结果通知(命令解析失败/日志打开失败等提前返回路径)
+	GetNotifyService().NotifyTaskResult(task.Name, model.RunStatusFailed, 0)
 }
 
 // buildExecEnv 构造子进程环境:面板安全基线变量 + 已启用环境变量。
