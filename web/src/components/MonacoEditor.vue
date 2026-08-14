@@ -36,6 +36,24 @@ onMounted(() => {
     tabSize: 2,
     wordWrap: 'on',
     renderWhitespace: 'selection',
+    // ---- 编辑功能增强 ----
+    bracketPairColorization: { enabled: true }, // 括号配对着色
+    autoClosingBrackets: 'always',              // 自动闭合括号
+    autoClosingQuotes: 'always',                // 自动闭合引号
+    autoIndent: 'full',                         // 自动缩进
+    matchBrackets: 'always',                    // 高亮配对括号
+    folding: true,                              // 代码折叠
+    foldingHighlight: true,                     // 折叠标记高亮
+    renderLineHighlight: 'all',                 // 当前行高亮
+    fontLigatures: true,                        // 字体连字
+    smoothScrolling: true,                      // 平滑滚动
+    cursorBlinking: 'smooth',                   // 光标平滑闪烁
+    cursorSmoothCaretAnimation: 'on',           // 光标平滑移动
+    padding: { top: 8, bottom: 8 },             // 编辑区上下留白
+    contextmenu: true,                          // 右键菜单
+    quickSuggestions: false,                    // 基础语言无补全,避免弹窗噪音
+    suggestOnTriggerCharacters: false,
+    wordBasedSuggestions: 'off',
   })
   editor.onDidChangeModelContent(() => {
     if (applyingExternal || !editor) return
