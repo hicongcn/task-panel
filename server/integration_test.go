@@ -453,15 +453,15 @@ func TestEnvCRUD(t *testing.T) {
 	})
 	assertCode(t, w, 400, 400, "invalid env name rejected")
 
-	// 列表(值脱敏,不返回原值)
+	// 列表(明文返回,面板自用场景)
 	w = doRequest(t, "GET", "/api/v1/envs", token, nil)
 	assertCode(t, w, 200, 0, "list envs")
 	body := w.Body.String()
-	if strings.Contains(body, "s3cr3t-value") {
-		t.Fatal("env list leaked raw value")
+	if !strings.Contains(body, "s3cr3t-value") {
+		t.Fatal("env list should return plain value")
 	}
-	if !strings.Contains(body, "value_masked") {
-		t.Fatal("env list missing value_masked")
+	if !strings.Contains(body, "\"value\"") {
+		t.Fatal("env list missing value field")
 	}
 
 	// 更新
