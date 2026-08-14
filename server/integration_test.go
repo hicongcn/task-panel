@@ -1433,3 +1433,48 @@ func mustLogin(t *testing.T) string {
 	}
 	return lr.AccessToken
 }
+
+// ---------- 面板配置(标题/图标/日志清理) ----------
+
+func TestSystemConfig(t *testing.T) {
+	token := getToken(t)
+
+	// 公开接口无需登录
+	w := doRequest(t, "GET", "/api/v1/system/panel", "", nil)
+	assertCode(t, w, 200, 0, "panel info public")
+
+	// 保存配置
+	w = doRequest(t, "PUT", "/api/v1/system/config", token, map[string]interface{}{
+		"panel_title": "我的面板", "panel_logo": "🐉", "log_clean_days": 7,
+	})
+	assertCode(t, w, 200, 0, "update config")
+
+	// 读取
+	w = doRequest(t, "GET", "/api/v1/system/config", token, nil)
+	assertCode(t, w, 200, 0, "get config")
+	var cfg struct {
+		Data struct {
+			PanelTitle   string `json:"panel_title"`
+			PanelLogo    string `json:"panel_logo"`
+			LogCleanDays int    `json:"log_clean_days"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &cfg)
+	if cfg.Data.PanelTitle != "我的面板" || cfg.Data.PanelLogo != "🐉" || cfg.Data.LogCleanDays != 7 {
+		t.Fatalf("配置未生效: %+v", cfg.Data)
+	}
+
+	// 公开接口也返回新标题
+	w = doRequest(t, "GET", "/api/v1/system/panel", "", nil)
+	if !strings.Contains(w.Body.String(), "我的面板") {
+		t.Fatalf("panel info 未返回新标题: %s", w.Body.String())
+	}
+
+	// 恢复默认
+	w = doRequest(t, "PUT", "/api/v1/system/config", token, map[string]interface{}{
+		"panel_title": "Task Panel", "panel_logo": "", "log_clean_days": 0,
+	})
+	assertCode(t, w, 200, 0, "reset config")
+}
+
+// ---------- 助手 ----------

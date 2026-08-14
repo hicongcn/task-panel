@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,4 +104,27 @@ func (s *LogService) RawFilePath(id uint) (string, string, error) {
 func safeLogPath(logPath string) (string, error) {
 	logDir := config.C.Data.LogDir
 	return pathutil.ResolveWithinBase(logDir, logPath, false)
+}
+
+// Clean 删除 days 天前的日志记录与对应日志文件,返回清理条数与文件数。
+func (s *LogService) Clean(days int) (int64, int64, error) {
+	if days < 1 {
+		return 0, 0, nil
+	}
+	cutoff := time.Now().AddDate(0, 0, -days)
+	var logs []model.TaskLog
+	database.DB.Where("started_at < ?", cutoff).Find(&logs)
+	var files int64
+	for _, l := range logs {
+		if l.LogPath != "" {
+			if err := os.Remove(l.LogPath); err == nil {
+				files++
+			}
+		}
+	}
+	res := database.DB.Where("started_at < ?", cutoff).Delete(&model.TaskLog{})
+	if res.Error != nil {
+		return 0, files, res.Error
+	}
+	return res.RowsAffected, files, nil
 }

@@ -162,6 +162,8 @@ const (
 	AuditActionMigrateExport = "migrate_export"
 	AuditActionMigrateImport = "migrate_import"
 
+	AuditActionSystemConfig = "system_config"
+
 	AuditActionTOTPEnable  = "totp_enable"
 	AuditActionTOTPDisable = "totp_disable"
 )

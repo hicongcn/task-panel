@@ -117,25 +117,13 @@ func cmdLogClean(args []string) error {
 	if *days < 1 {
 		return fmt.Errorf("--days 需为正整数")
 	}
+	records, files, err := service.NewLogService().Clean(*days)
+	if err != nil {
+		return err
+	}
 	cutoff := time.Now().AddDate(0, 0, -*days)
-
-	// 找出过期记录并删除对应日志文件
-	var logs []model.TaskLog
-	database.DB.Where("started_at < ?", cutoff).Find(&logs)
-	deletedFiles := 0
-	for _, l := range logs {
-		if l.LogPath != "" {
-			_ = os.Remove(l.LogPath)
-			deletedFiles++
-		}
-	}
-
-	res := database.DB.Where("started_at < ?", cutoff).Delete(&model.TaskLog{})
-	if res.Error != nil {
-		return res.Error
-	}
 	fmt.Printf("✅ 已清理 %d 条日志记录,删除 %d 个日志文件(早于 %s)\n",
-		res.RowsAffected, deletedFiles, cutoff.Format("2006-01-02"))
+		records, files, cutoff.Format("2006-01-02"))
 	return nil
 }
 

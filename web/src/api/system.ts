@@ -18,6 +18,9 @@ export interface SysStats {
 
 export const systemApi = {
   stats: () => request.get('/system/stats'),
+  panelInfo: () => request.get('/system/panel'),
+  getConfig: () => request.get('/system/config'),
+  updateConfig: (data: any) => request.put('/system/config', data),
 }
 
 export function formatBytes(bytes: number): string {
