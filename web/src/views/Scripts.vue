@@ -16,7 +16,15 @@
           </el-dropdown>
         </div>
       </div>
-      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current draggable @node-click="onSelect" @node-drop="onNodeDrop" />
+      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current draggable @node-click="onSelect" @node-drop="onNodeDrop">
+        <template #default="{ data }">
+          <span class="tree-node">
+            <el-icon v-if="data.type === 'directory'" class="dir-icon"><Folder /></el-icon>
+            <el-icon v-else class="file-icon"><Document /></el-icon>
+            <span class="node-title">{{ data.title }}</span>
+          </span>
+        </template>
+      </el-tree>
     </div>
 
     <div class="editor-pane">
@@ -35,6 +43,23 @@
       </template>
     </div>
 
+    <el-dialog v-model="fileDialog.visible" title="新建文件" width="420px">
+      <el-form label-width="70px">
+        <el-form-item label="目录">
+          <el-select v-model="fileDialog.dir" placeholder="根目录" clearable style="width:100%">
+            <el-option v-for="d in dirList" :key="d" :label="d || '(根目录)'" :value="d" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="文件名" required>
+          <el-input v-model="fileDialog.name" placeholder="如 hello.py" @keyup.enter="doCreateFile" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="fileDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="doCreateFile">创建</el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="resultDrawer" title="运行结果" size="50%">
       <pre class="log-surface">{{ result.output }}</pre>
       <div class="result-meta">退出码 {{ result.exit_code }} · 耗时 {{ result.duration.toFixed(2) }}s <el-tag v-if="result.timed_out" type="warning" size="small">超时</el-tag></div>
@@ -45,7 +70,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, Folder, Document } from '@element-plus/icons-vue'
 import MonacoEditor from '@/components/MonacoEditor.vue'
 import { languageForPath } from '@/monaco'
 import { scriptApi, type ScriptNode } from '@/api/script'
@@ -57,10 +82,26 @@ const result = reactive({ output: '', exit_code: 0, duration: 0, timed_out: fals
 
 const editorLanguage = computed(() => (current.path ? languageForPath(current.path) : 'plaintext'))
 
+const dirList = ref<string[]>([''])
+const fileDialog = reactive({ visible: false, dir: '', name: '' })
+
+// 展平树里的所有目录路径
+function collectDirs(nodes: ScriptNode[]): string[] {
+  const out: string[] = []
+  for (const n of nodes || []) {
+    if (n.type === 'directory') {
+      out.push(n.key)
+      if (n.children?.length) out.push(...collectDirs(n.children))
+    }
+  }
+  return out
+}
+
 async function refreshTree() {
   try {
     const res: any = await scriptApi.tree()
     tree.value = res.data.data || []
+    dirList.value = ['', ...collectDirs(tree.value)]
   } catch {}
 }
 refreshTree()
@@ -113,24 +154,26 @@ async function onNewCommand(cmd: string) {
   else await newDir()
 }
 
-async function newFile() {
+function newFile() {
+  Object.assign(fileDialog, { visible: true, dir: '', name: '' })
+}
+
+async function doCreateFile() {
+  const name = fileDialog.name.trim()
+  if (!name) return ElMessage.warning('请输入文件名')
+  const path = fileDialog.dir ? `${fileDialog.dir}/${name}` : name
   try {
-    const { value } = await ElMessageBox.prompt('输入文件相对路径(如 demo/hello.py)', '新建文件', {
-      inputValue: '',
-      confirmButtonText: '创建',
-      cancelButtonText: '取消',
-      inputPattern: /\S/,
-      inputErrorMessage: '路径不能为空',
-    })
-    const path = value.trim()
     await scriptApi.save(path, '')
     ElMessage.success('已创建')
+    fileDialog.visible = false
     refreshTree()
     // 打开新文件
     const res: any = await scriptApi.content(path)
     current.path = res.data.data.path
     current.content = res.data.data.content
-  } catch {}
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '创建失败')
+  }
 }
 
 async function newDir() {
@@ -185,6 +228,10 @@ async function remove() {
 .scripts-wrap { display: flex; height: calc(100vh - 90px); gap: 8px; }
 .tree-pane { width: 260px; background: #fff; border-radius: 6px; padding: 8px; overflow: auto; }
 .tree-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+.tree-node { display: inline-flex; align-items: center; gap: 5px; }
+.dir-icon { color: #e6a23c; }
+.file-icon { color: #909399; }
+.node-title { overflow: hidden; text-overflow: ellipsis; }
 .tree-actions { display: flex; gap: 4px; }
 .editor-pane { flex: 1; background: #fff; border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
 .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #909399; }

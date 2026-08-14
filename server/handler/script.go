@@ -49,6 +49,11 @@ func buildTree(baseDir, prefix string) []map[string]interface{} {
 		return []map[string]interface{}{}
 	}
 	sort.Slice(entries, func(i, j int) bool {
+		// 文件夹在前,文件在后;同类按名称排序
+		di, dj := entries[i].IsDir(), entries[j].IsDir()
+		if di != dj {
+			return di
+		}
 		return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name())
 	})
 
