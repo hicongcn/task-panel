@@ -13,20 +13,20 @@
     </div>
 
     <el-table :data="apps" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="40" show-overflow-tooltip />
-      <el-table-column label="Client ID" min-width="80">
+      <el-table-column prop="name" label="名称" show-overflow-tooltip />
+      <el-table-column label="Client ID">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.client_id }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="Client Secret" min-width="70">
+      <el-table-column label="Client Secret">
         <template #default="{ row }">
           <span class="copy-cell secret-text">••••••••</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="权限" min-width="60">
+      <el-table-column label="权限">
         <template #default="{ row }">
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>
@@ -57,22 +57,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="secretVisible" title="凭据(仅显示一次,请立即保存)" width="560px" :close-on-click-modal="false">
-      <el-alert type="warning" :closable="false" title="关闭后无法再次查看,请先复制保存" style="margin-bottom:12px" />
-      <el-form label-width="90px">
-        <el-form-item label="Client ID">
-          <el-input :model-value="secretData.client_id" readonly><template #append><el-button @click="copy(secretData.client_id)">复制</el-button></template></el-input>
-        </el-form-item>
-        <el-form-item label="Client Secret">
-          <el-input :model-value="secretData.client_secret" readonly type="password" show-password>
-            <template #append><el-button @click="copy(secretData.client_secret)">复制</el-button></template>
-          </el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button type="primary" @click="secretVisible = false">我已保存</el-button>
-      </template>
-    </el-dialog>
+
   </div>
 </template>
 
@@ -86,8 +71,6 @@ const apps = ref<OpenApp[]>([])
 const loading = ref(false)
 const createVisible = ref(false)
 const editingId = ref<number | null>(null)
-const secretVisible = ref(false)
-const secretData = reactive({ client_id: '', client_secret: '' })
 const form = reactive({ name: '', scopes: [] as string[] })
 
 function scopesOf(row: OpenApp): string[] {
@@ -135,10 +118,8 @@ async function onCreate() {
       await openApi.update(editingId.value, { name: form.name.trim(), scopes: form.scopes })
       ElMessage.success('已更新')
     } else {
-      const res: any = await openApi.create(form.name.trim(), form.scopes)
-      const d = res.data.data
-      Object.assign(secretData, { client_id: d.client_id, client_secret: d.client_secret })
-      secretVisible.value = true
+      await openApi.create(form.name.trim(), form.scopes)
+      ElMessage.success('创建成功,凭据可在列表中复制')
     }
     createVisible.value = false
     load()
@@ -152,9 +133,9 @@ async function onReset(row: OpenApp) {
     await ElMessageBox.confirm(`重置「${row.name}」的密钥?旧密钥将立即失效。`, '确认重置', { type: 'warning' })
   } catch { return }
   try {
-    const res: any = await openApi.resetSecret(row.id)
-    Object.assign(secretData, { client_id: row.client_id, client_secret: res.data.data.client_secret })
-    secretVisible.value = true
+    await openApi.resetSecret(row.id)
+    ElMessage.success('密钥已重置,可在列表中复制')
+    load()
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '重置失败')
   }
