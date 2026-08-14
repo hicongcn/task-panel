@@ -58,3 +58,6 @@ html, body, #app {
   max-height: 60vh;
   overflow: auto;
 }
+
+/* 禁用 Monaco 悬停提示:查找框按钮的快捷键提示在屏幕边缘溢出并遮挡点击 */
+.monaco-hover { display: none !important; }
