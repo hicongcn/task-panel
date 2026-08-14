@@ -64,3 +64,11 @@ html, body, #app {
 
 /* 表格固定操作列按钮不换行(保持一行展示) */
 .el-table .el-table__fixed-right .cell { white-space: nowrap !important; }
+
+/* 表格列宽由内容决定(table-layout auto):内容多列宽、内容少列窄,内容不换行 */
+.el-table__header table,
+.el-table__body table {
+  table-layout: auto !important;
+  width: auto !important;
+}
+.el-table .cell { white-space: nowrap; }
