@@ -37,7 +37,7 @@
           <el-tag v-if="row.status === 'running'" type="warning" size="small" style="margin-left:4px">运行中</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="230" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <div class="op-cell">
           <el-button size="small" :type="row.status === 'running' ? 'danger' : 'primary'" @click="row.status === 'running' ? stopTask(row) : runTask(row)">
