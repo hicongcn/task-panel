@@ -38,6 +38,9 @@ func main() {
 	}
 	defer service.GetScheduler().Stop()
 
+	// 启动定时备份调度(根据运行期设置)
+	service.GetBackupService().InitScheduledBackup()
+
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}

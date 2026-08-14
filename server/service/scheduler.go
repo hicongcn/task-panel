@@ -31,6 +31,17 @@ func newScheduler() *Scheduler {
 // GetScheduler 返回全局调度器。
 func GetScheduler() *Scheduler { return defaultScheduler }
 
+// Reload 清空所有调度并重新从数据库加载(备份恢复后调用)。
+func (s *Scheduler) Reload() error {
+	s.mu.Lock()
+	for id := range s.entries {
+		s.cron.Remove(s.entries[id])
+	}
+	s.entries = make(map[uint]cron.EntryID)
+	s.mu.Unlock()
+	return s.LoadEnabled()
+}
+
 // LoadEnabled 启动时加载所有已启用任务并注册。
 func (s *Scheduler) LoadEnabled() error {
 	var tasks []model.Task

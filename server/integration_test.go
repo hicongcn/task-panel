@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,9 +43,10 @@ func TestMain(m *testing.M) {
 			ScriptsDir: filepath.Join(dir, "scripts"),
 			LogDir:     filepath.Join(dir, "logs"),
 		},
-		CORS: config.CORSConfig{Origins: []string{"http://localhost:5173"}},
+		Backup: config.BackupConfig{Dir: filepath.Join(dir, "backups")},
+		CORS:   config.CORSConfig{Origins: []string{"http://localhost:5173"}},
 	}
-	for _, d := range []string{config.C.Data.Dir, config.C.Data.ScriptsDir, config.C.Data.LogDir} {
+	for _, d := range []string{config.C.Data.Dir, config.C.Data.ScriptsDir, config.C.Data.LogDir, config.C.Backup.Dir} {
 		_ = os.MkdirAll(d, 0o755)
 	}
 
@@ -720,6 +722,87 @@ func TestTaskResultNotify(t *testing.T) {
 	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
 	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=notify_test.sh", token, nil)
 	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", channelID), token, nil)
+}
+
+// doUpload 构造 multipart/form-data 上传请求。
+func doUpload(t *testing.T, path, token, field, filename string, content []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile(field, filename)
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fw.Write(content); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	_ = mw.Close()
+	req := httptest.NewRequest(http.MethodPost, path, &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	testEngine.ServeHTTP(w, req)
+	return w
+}
+
+// ---------- 备份与恢复 ----------
+
+func TestBackupRestore(t *testing.T) {
+	token := getToken(t)
+
+	// 1. 备份前状态:创建脚本 before_backup.sh
+	w := doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "before_backup.sh", "content": "#!/bin/bash\necho before\n",
+	})
+	assertCode(t, w, 200, 0, "save script before backup")
+
+	// 2. 创建备份
+	w = doRequest(t, "POST", "/api/v1/backups", token, nil)
+	assertCode(t, w, 201, 0, "create backup")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	backupName := created.Data["name"].(string)
+	if backupName == "" {
+		t.Fatal("备份名称为空")
+	}
+
+	// 3. 读备份文件内容(用于稍后上传恢复)
+	backupPath := filepath.Join(config.C.Backup.Dir, backupName)
+	backupBytes, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("读备份文件失败: %v", err)
+	}
+	if len(backupBytes) < 20 {
+		t.Fatal("备份文件异常偏小")
+	}
+
+	// 4. 修改数据:新增 after_backup.sh
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "after_backup.sh", "content": "#!/bin/bash\necho after\n",
+	})
+	assertCode(t, w, 200, 0, "save script after backup")
+
+	// 5. 上传恢复
+	w = doUpload(t, "/api/v1/backups/restore", token, "file", backupName, backupBytes)
+	assertCode(t, w, 200, 0, "restore backup")
+
+	// 6. 验证:脚本树回到备份时状态(before 存在,after 不存在)
+	w = doRequest(t, "GET", "/api/v1/scripts/tree", token, nil)
+	assertCode(t, w, 200, 0, "list scripts after restore")
+	body := w.Body.String()
+	if !strings.Contains(body, "before_backup.sh") {
+		t.Fatalf("恢复后应包含 before_backup.sh, got %s", body)
+	}
+	if strings.Contains(body, "after_backup.sh") {
+		t.Fatalf("恢复后不应包含 after_backup.sh, got %s", body)
+	}
+
+	// 清理备份文件
+	_ = os.Remove(backupPath)
 }
 
 // ---------- 助手 ----------

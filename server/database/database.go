@@ -59,6 +59,7 @@ func Init(path string) error {
 		&model.LoginAttempt{},
 		&model.AuditLog{},
 		&model.NotifyChannel{},
+		&model.Setting{},
 	); err != nil {
 		return err
 	}

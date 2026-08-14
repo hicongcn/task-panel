@@ -72,6 +72,19 @@ func (e *Executor) Acquire(taskID uint) bool {
 	return true
 }
 
+// StopAll 停止所有运行中的任务(备份恢复前调用)。
+func (e *Executor) StopAll() {
+	e.mu.Lock()
+	ids := make([]uint, 0, len(e.running))
+	for id := range e.running {
+		ids = append(ids, id)
+	}
+	e.mu.Unlock()
+	for _, id := range ids {
+		e.ManualStop(id)
+	}
+}
+
 // isStopped 返回任务是否已被手动标记停止。
 func (e *Executor) isStopped(taskID uint) bool {
 	h := e.getHandle(taskID)

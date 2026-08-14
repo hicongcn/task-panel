@@ -13,7 +13,7 @@ func Setup(engine *gin.Engine) {
 	engine.Use(middleware.CORS())
 
 	v1 := engine.Group("/api/v1")
-	v1.Use(middleware.MaxBodySize(20 << 20)) // 限制 API 请求体 20MB,防内存耗尽
+	v1.Use(middleware.MaxBodySize(100 << 20)) // 限制 API 请求体 100MB(含备份恢复上传)
 
 	handler.NewAuthHandler().RegisterRoutes(v1)
 	handler.NewTaskHandler().RegisterRoutes(v1)
@@ -23,6 +23,7 @@ func Setup(engine *gin.Engine) {
 	handler.NewSystemHandler().RegisterRoutes(v1)
 	handler.NewAuditHandler().RegisterRoutes(v1)
 	handler.NewNotifyHandler().RegisterRoutes(v1)
+	handler.NewBackupHandler().RegisterRoutes(v1)
 
 	// 版本(公开)
 	engine.GET("/api/v1/version", func(c *gin.Context) {

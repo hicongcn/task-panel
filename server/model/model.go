@@ -142,6 +142,11 @@ const (
 	AuditActionNotifyUpdate = "notify_update"
 	AuditActionNotifyDelete = "notify_delete"
 	AuditActionNotifyToggle = "notify_toggle"
+
+	AuditActionBackupCreate  = "backup_create"
+	AuditActionBackupDelete  = "backup_delete"
+	AuditActionBackupRestore = "backup_restore"
+	AuditActionBackupSetting = "backup_setting"
 )
 
 // NotifyChannel 通知渠道(webhook / telegram / bark / email)。
@@ -163,3 +168,9 @@ const (
 	NotifyTypeBark     = "bark"
 	NotifyTypeEmail    = "email"
 )
+
+// Setting 运行期配置(键值对),用于通知/定时备份等需要动态开关的场景。
+type Setting struct {
+	Key   string `gorm:"primaryKey;size:64" json:"key"`
+	Value string `gorm:"type:text" json:"value"`
+}

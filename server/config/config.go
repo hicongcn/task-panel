@@ -26,6 +26,7 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	JWT      JWTConfig      `yaml:"jwt"`
 	Data     DataConfig     `yaml:"data"`
+	Backup   BackupConfig   `yaml:"backup"`
 	CORS     CORSConfig     `yaml:"cors"`
 }
 
@@ -48,6 +49,10 @@ type DataConfig struct {
 	Dir        string `yaml:"dir"`
 	ScriptsDir string `yaml:"scripts_dir"`
 	LogDir     string `yaml:"log_dir"`
+}
+
+type BackupConfig struct {
+	Dir string `yaml:"dir"`
 }
 
 type CORSConfig struct {
@@ -115,6 +120,7 @@ func Load(path string) (*Config, error) {
 	cfg.Data.ScriptsDir = resolveDataPath(configDir, cfg.Data.ScriptsDir)
 	cfg.Data.LogDir = resolveDataPath(configDir, cfg.Data.LogDir)
 	cfg.Database.Path = resolveDataPath(configDir, cfg.Database.Path)
+	cfg.Backup.Dir = resolveDataPath(configDir, cfg.Backup.Dir)
 
 	if cfg.Data.ScriptsDir == "" {
 		cfg.Data.ScriptsDir = filepath.Join(cfg.Data.Dir, "scripts")
@@ -122,8 +128,11 @@ func Load(path string) (*Config, error) {
 	if cfg.Data.LogDir == "" {
 		cfg.Data.LogDir = filepath.Join(cfg.Data.Dir, "logs")
 	}
+	if cfg.Backup.Dir == "" {
+		cfg.Backup.Dir = filepath.Join(cfg.Data.Dir, "backups")
+	}
 
-	for _, dir := range []string{cfg.Data.Dir, cfg.Data.ScriptsDir, cfg.Data.LogDir} {
+	for _, dir := range []string{cfg.Data.Dir, cfg.Data.ScriptsDir, cfg.Data.LogDir, cfg.Backup.Dir} {
 		if dir == "" {
 			continue
 		}
@@ -168,4 +177,25 @@ func loadOrGenerateSecret(dataDir string) string {
 		log.Printf("warn: 持久化 JWT 密钥失败: %v", err)
 	}
 	return secret
+}
+
+// BackupKey 返回 32 字节的备份加密密钥(hex 持久化到 dataDir/.backup_key)。
+// 密钥首次自动生成,重启后保持一致,保证历史备份可恢复。
+func BackupKey(dataDir string) []byte {
+	keyFile := filepath.Join(dataDir, ".backup_key")
+	if data, err := os.ReadFile(keyFile); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+		if key, err := hex.DecodeString(strings.TrimSpace(string(data))); err == nil && len(key) == 32 {
+			return key
+		}
+	}
+
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("生成备份密钥失败: %v", err)
+	}
+	_ = os.MkdirAll(dataDir, 0o755)
+	if err := os.WriteFile(keyFile, []byte(hex.EncodeToString(b)), 0o600); err != nil {
+		log.Printf("warn: 持久化备份密钥失败: %v", err)
+	}
+	return b
 }
