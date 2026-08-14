@@ -1190,6 +1190,114 @@ func TestTaskTags(t *testing.T) {
 	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=tag_test.sh", token, nil)
 }
 
+// ---------- 批量导入/导出 ----------
+
+func TestMigrate(t *testing.T) {
+	token := getToken(t)
+
+	// 准备数据:脚本 + 任务 + 环境变量
+	w := doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "mig_test.sh", "content": "#!/bin/bash\necho migrate\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "迁移任务", "command": "mig_test.sh", "cron_expression": "0 3 * * *",
+		"enabled": false, "tags": []string{"迁移"},
+	})
+	assertCode(t, w, 201, 0, "create task")
+	w = doRequest(t, "POST", "/api/v1/envs", token, map[string]interface{}{
+		"name": "MIG_KEY", "value": "mig-value", "group": "迁移", "enabled": true,
+	})
+	assertCode(t, w, 201, 0, "create env")
+
+	// 导出
+	w = doRequest(t, "GET", "/api/v1/migrate/export", token, nil)
+	assertCode(t, w, 200, 0, "export")
+	var exp struct {
+		Data struct {
+			Tasks   []map[string]interface{} `json:"tasks"`
+			Scripts []map[string]interface{} `json:"scripts"`
+			Envs    []map[string]interface{} `json:"envs"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(decodeResp(t, w).Data, &exp); err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if len(exp.Data.Tasks) == 0 || len(exp.Data.Scripts) == 0 || len(exp.Data.Envs) == 0 {
+		t.Fatalf("导出内容不全: tasks=%d scripts=%d envs=%d",
+			len(exp.Data.Tasks), len(exp.Data.Scripts), len(exp.Data.Envs))
+	}
+	hasMigValue := false
+	for _, e := range exp.Data.Envs {
+		if e["value"] == "mig-value" {
+			hasMigValue = true
+		}
+	}
+	if !hasMigValue {
+		t.Fatal("导出应包含环境变量明文值")
+	}
+
+	// 清理数据(模拟迁移到空环境)
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=mig_test.sh", token, nil)
+	w = doRequest(t, "GET", "/api/v1/tasks?keyword=迁移任务", token, nil)
+	assertCode(t, w, 200, 0, "list task to delete")
+	var list struct {
+		Data []struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &list)
+	if len(list.Data) > 0 {
+		_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", list.Data[0].ID), token, nil)
+	}
+	w = doRequest(t, "GET", "/api/v1/envs", token, nil)
+	var envList struct {
+		Data []struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &envList)
+	for _, e := range envList.Data {
+		_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/envs/%d", e.ID), token, nil)
+	}
+
+	// 导入
+	w = doRequest(t, "POST", "/api/v1/migrate/import", token, map[string]interface{}{
+		"tasks": exp.Data.Tasks, "scripts": exp.Data.Scripts, "envs": exp.Data.Envs,
+	})
+	assertCode(t, w, 200, 0, "import")
+	var ir struct {
+		Data struct {
+			TasksOK   int `json:"tasks_ok"`
+			ScriptsOK int `json:"scripts_ok"`
+			EnvsOK    int `json:"envs_ok"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &ir)
+	if ir.Data.TasksOK < 1 || ir.Data.ScriptsOK < 1 || ir.Data.EnvsOK < 1 {
+		t.Fatalf("导入结果不符: %+v", ir.Data)
+	}
+
+	// 验证恢复
+	w = doRequest(t, "GET", "/api/v1/scripts/tree", token, nil)
+	if !strings.Contains(w.Body.String(), "mig_test.sh") {
+		t.Fatal("脚本未恢复")
+	}
+	w = doRequest(t, "GET", "/api/v1/tasks", token, nil)
+	body := w.Body.String()
+	if !strings.Contains(body, "迁移任务") || !strings.Contains(body, "迁移") {
+		t.Fatal("任务或标签未恢复")
+	}
+
+	// 清理导入的数据
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=mig_test.sh", token, nil)
+	w = doRequest(t, "GET", "/api/v1/tasks?keyword=迁移任务", token, nil)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &list)
+	if len(list.Data) > 0 {
+		_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", list.Data[0].ID), token, nil)
+	}
+}
+
 // ---------- 助手 ----------
 
 var (

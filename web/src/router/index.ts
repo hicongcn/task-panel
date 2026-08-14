@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'openapi', name: 'openapi', component: () => import('@/views/OpenAPI.vue'), meta: { title: '开放接口' } },
       { path: 'audit', name: 'audit', component: () => import('@/views/AuditLogs.vue'), meta: { title: '审计日志' } },
       { path: 'settings', name: 'settings', component: () => import('@/views/Settings.vue'), meta: { title: '安全设置' } },
+      { path: 'migrate', name: 'migrate', component: () => import('@/views/Migrate.vue'), meta: { title: '数据迁移' } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

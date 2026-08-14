@@ -159,6 +159,9 @@ const (
 	AuditActionOpenAppReset   = "open_app_reset"
 	AuditActionOpenAuthFail   = "open_auth_fail"
 
+	AuditActionMigrateExport = "migrate_export"
+	AuditActionMigrateImport = "migrate_import"
+
 	AuditActionTOTPEnable  = "totp_enable"
 	AuditActionTOTPDisable = "totp_disable"
 )

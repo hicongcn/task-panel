@@ -14,6 +14,7 @@
         <el-menu-item index="/openapi"><el-icon><Connection /></el-icon><span>开放接口</span></el-menu-item>
         <el-menu-item index="/audit"><el-icon><Tickets /></el-icon><span>审计日志</span></el-menu-item>
         <el-menu-item index="/settings"><el-icon><Lock /></el-icon><span>安全设置</span></el-menu-item>
+        <el-menu-item index="/migrate"><el-icon><Switch /></el-icon><span>数据迁移</span></el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -36,7 +37,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Monitor, Timer, Document, Key, List, Tickets, Bell, FolderOpened, Box, Connection, Lock, ArrowDown } from '@element-plus/icons-vue'
+import { Monitor, Timer, Document, Key, List, Tickets, Bell, FolderOpened, Box, Connection, Lock, Switch, ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
