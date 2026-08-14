@@ -14,19 +14,19 @@
 
     <el-table :data="apps" v-loading="loading" border stripe>
       <el-table-column prop="name" label="名称" min-width="40" show-overflow-tooltip />
-      <el-table-column label="Client ID" min-width="100">
+      <el-table-column label="Client ID" min-width="80">
         <template #default="{ row }">
           <span class="copy-cell">{{ row.client_id }}</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_id)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="Client Secret" min-width="90">
+      <el-table-column label="Client Secret" min-width="70">
         <template #default="{ row }">
           <span class="copy-cell secret-text">••••••••</span>
           <el-button link size="small" class="copy-btn" @click="copy(row.client_secret)"><el-icon><CopyDocument /></el-icon></el-button>
         </template>
       </el-table-column>
-      <el-table-column label="权限" min-width="70">
+      <el-table-column label="权限" min-width="60">
         <template #default="{ row }">
           <el-tag v-for="s in scopesOf(row)" :key="s" size="small" style="margin-right:4px">{{ scopeLabels[s] || s }}</el-tag>
         </template>

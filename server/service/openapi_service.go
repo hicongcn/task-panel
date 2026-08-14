@@ -87,7 +87,7 @@ func (s *OpenAPIService) Create(name string, scopes []string) (*model.OpenApp, s
 		return nil, "", fmt.Errorf("应用名称已存在")
 	}
 
-	secret := randomHex(32)
+	secret := randomAlnum(32)
 	app := &model.OpenApp{
 		Name:         name,
 		ClientID:     randomAlnum(4) + "-" + randomAlnum(8),
