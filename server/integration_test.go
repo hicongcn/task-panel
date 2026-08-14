@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -833,6 +834,48 @@ func TestIPWhitelist(t *testing.T) {
 
 	config.C.Security.IPWhitelist = nil
 	check(200, "空列表全部放行")
+}
+
+// ---------- 依赖管理 ----------
+
+func TestDeps(t *testing.T) {
+	token := getToken(t)
+
+	// 非法包名(命令注入尝试)应被拒绝
+	w := doRequest(t, "POST", "/api/v1/deps/python/install", token, map[string]string{
+		"package": "pkg;rm -rf /",
+	})
+	assertCode(t, w, 400, 400, "注入字符拒绝")
+
+	// 空包名应被拒绝
+	w = doRequest(t, "POST", "/api/v1/deps/node/uninstall", token, map[string]string{
+		"package": " ",
+	})
+	assertCode(t, w, 400, 400, "空包名拒绝")
+
+	// 环境无 pip3 时应返回友好错误(有 pip3 则列表应 200)
+	hasPip := func() bool {
+		_, err := exec.LookPath("pip3")
+		return err == nil
+	}()
+	w = doRequest(t, "GET", "/api/v1/deps/python", token, nil)
+	if hasPip {
+		assertCode(t, w, 200, 0, "pip3 列表")
+	} else {
+		assertCode(t, w, 400, 400, "无 pip3 友好错误")
+	}
+
+	// npm 同理
+	hasNpm := func() bool {
+		_, err := exec.LookPath("npm")
+		return err == nil
+	}()
+	w = doRequest(t, "GET", "/api/v1/deps/node", token, nil)
+	if hasNpm {
+		assertCode(t, w, 200, 0, "npm 列表")
+	} else {
+		assertCode(t, w, 400, 400, "无 npm 友好错误")
+	}
 }
 
 // ---------- 助手 ----------

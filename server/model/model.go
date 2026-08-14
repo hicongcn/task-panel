@@ -147,6 +147,9 @@ const (
 	AuditActionBackupDelete  = "backup_delete"
 	AuditActionBackupRestore = "backup_restore"
 	AuditActionBackupSetting = "backup_setting"
+
+	AuditActionDepInstall   = "dep_install"
+	AuditActionDepUninstall = "dep_uninstall"
 )
 
 // NotifyChannel 通知渠道(webhook / telegram / bark / email)。

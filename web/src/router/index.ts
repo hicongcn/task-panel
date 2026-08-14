@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'logs', name: 'logs', component: () => import('@/views/Logs.vue'), meta: { title: '执行日志' } },
       { path: 'notify', name: 'notify', component: () => import('@/views/NotifyChannels.vue'), meta: { title: '通知渠道' } },
       { path: 'backups', name: 'backups', component: () => import('@/views/Backups.vue'), meta: { title: '备份恢复' } },
+      { path: 'deps', name: 'deps', component: () => import('@/views/Dependencies.vue'), meta: { title: '依赖管理' } },
       { path: 'audit', name: 'audit', component: () => import('@/views/AuditLogs.vue'), meta: { title: '审计日志' } },
     ],
   },

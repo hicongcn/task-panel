@@ -25,6 +25,7 @@ func Setup(engine *gin.Engine) {
 	handler.NewAuditHandler().RegisterRoutes(v1)
 	handler.NewNotifyHandler().RegisterRoutes(v1)
 	handler.NewBackupHandler().RegisterRoutes(v1)
+	handler.NewDepHandler().RegisterRoutes(v1)
 
 	// 版本(公开)
 	engine.GET("/api/v1/version", func(c *gin.Context) {
