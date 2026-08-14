@@ -16,7 +16,8 @@
           </el-dropdown>
         </div>
       </div>
-      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current draggable @node-click="onSelect" @node-drop="onNodeDrop">
+      <el-input v-model="keyword" placeholder="搜索脚本" clearable size="small" class="tree-search" @input="onSearch" @clear="onSearch" />
+      <el-tree ref="treeRef" :data="tree" node-key="key" :filter-node-method="filterNode" :props="{ label: 'title' }" highlight-current draggable @node-click="onSelect" @node-drop="onNodeDrop">
         <template #default="{ data }">
           <span class="tree-node">
             <el-icon v-if="data.type === 'directory'" class="dir-icon"><Folder /></el-icon>
@@ -76,6 +77,8 @@ import { languageForPath } from '@/monaco'
 import { scriptApi, type ScriptNode } from '@/api/script'
 
 const tree = ref<ScriptNode[]>([])
+const treeRef = ref()
+const keyword = ref('')
 const current = reactive({ path: '', content: '' })
 const resultDrawer = ref(false)
 const result = reactive({ output: '', exit_code: 0, duration: 0, timed_out: false })
@@ -95,6 +98,16 @@ function collectDirs(nodes: ScriptNode[]): string[] {
     }
   }
   return out
+}
+
+// filterNode 树节点名称过滤(搜索)
+function filterNode(value: string, data: any) {
+  if (!value) return true
+  return (data.title || '').toLowerCase().includes(value.toLowerCase())
+}
+
+function onSearch() {
+  treeRef.value?.filter(keyword.value)
 }
 
 async function refreshTree() {
@@ -240,6 +253,7 @@ async function remove() {
 .scripts-wrap { display: flex; height: calc(100vh - 90px); gap: 8px; }
 .tree-pane { width: 260px; background: #fff; border-radius: 6px; padding: 8px; overflow: auto; }
 .tree-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+.tree-search { margin-bottom: 8px; }
 .tree-node { display: inline-flex; align-items: center; gap: 5px; }
 .dir-icon { color: #e6a23c; }
 .file-icon { color: #909399; }

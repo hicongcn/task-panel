@@ -5,7 +5,8 @@
         <span>日志</span>
         <el-button size="small" @click="load">刷新</el-button>
       </div>
-      <el-tree :data="tree" node-key="key" :props="{ label: 'title' }" highlight-current @node-click="onSelect">
+      <el-input v-model="keyword" placeholder="搜索脚本/日志" clearable size="small" class="tree-search" @input="onSearch" @clear="onSearch" />
+      <el-tree ref="treeRef" :data="tree" node-key="key" :filter-node-method="filterNode" :props="{ label: 'title' }" highlight-current @node-click="onSelect">
         <template #default="{ data }">
           <span class="tree-node">
             <el-icon v-if="data.type === 'dir'" class="dir-icon"><Folder /></el-icon>
@@ -40,8 +41,20 @@ import { taskApi } from '@/api/task'
 import { ansiToHtml } from '@/utils/ansi'
 
 const tree = ref<any[]>([])
+const treeRef = ref()
+const keyword = ref('')
 const loading = ref(false)
 const current = ref({ id: 0, title: '', html: '', row: null as TaskLog | null })
+
+// filterNode 树节点名称过滤(搜索)
+function filterNode(value: string, data: any) {
+  if (!value) return true
+  return (data.title || '').toLowerCase().includes(value.toLowerCase())
+}
+
+function onSearch() {
+  treeRef.value?.filter(keyword.value)
+}
 
 // load 拉取全部日志 + 任务命令,按脚本路径分组为树
 async function load() {
@@ -136,6 +149,7 @@ load()
 .logs-wrap { display: flex; height: calc(100vh - 90px); gap: 8px; }
 .tree-pane { width: 300px; background: #fff; border-radius: 6px; padding: 8px; overflow: auto; }
 .tree-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+.tree-search { margin-bottom: 8px; }
 .detail-pane { flex: 1; background: #fff; border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
 .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #909399; }
 .detail-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #ebeef5; }
