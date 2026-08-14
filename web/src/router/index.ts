@@ -13,6 +13,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'scripts', name: 'scripts', component: () => import('@/views/Scripts.vue'), meta: { title: '脚本管理' } },
       { path: 'envs', name: 'envs', component: () => import('@/views/Envs.vue'), meta: { title: '环境变量' } },
       { path: 'logs', name: 'logs', component: () => import('@/views/Logs.vue'), meta: { title: '执行日志' } },
+      { path: 'notify', name: 'notify', component: () => import('@/views/NotifyChannels.vue'), meta: { title: '通知渠道' } },
       { path: 'audit', name: 'audit', component: () => import('@/views/AuditLogs.vue'), meta: { title: '审计日志' } },
     ],
   },

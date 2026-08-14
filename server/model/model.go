@@ -137,4 +137,29 @@ const (
 	AuditActionEnvUpdate     = "env_update"
 	AuditActionEnvDelete     = "env_delete"
 	AuditActionEnvBatchDel   = "env_batch_delete"
+
+	AuditActionNotifyCreate = "notify_create"
+	AuditActionNotifyUpdate = "notify_update"
+	AuditActionNotifyDelete = "notify_delete"
+	AuditActionNotifyToggle = "notify_toggle"
+)
+
+// NotifyChannel 通知渠道(webhook / telegram / bark / email)。
+// Config 存 JSON 文本,字段因类型而异,由 service 层解析。
+type NotifyChannel struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"size:128" json:"name"`
+	Type      string    `gorm:"size:32;index" json:"type"`
+	Enabled   bool      `json:"enabled"`
+	Config    string    `gorm:"type:text" json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// NotifyType 常量。
+const (
+	NotifyTypeWebhook  = "webhook"
+	NotifyTypeTelegram = "telegram"
+	NotifyTypeBark     = "bark"
+	NotifyTypeEmail    = "email"
 )

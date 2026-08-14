@@ -1,0 +1,83 @@
+package service
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestValidateNotifyConfig(t *testing.T) {
+	cases := []struct {
+		typ string
+		cfg map[string]interface{}
+		ok  bool
+	}{
+		{"webhook", map[string]interface{}{"url": "https://x.com/hook"}, true},
+		{"webhook", map[string]interface{}{"url": "ftp://x.com"}, false},
+		{"webhook", map[string]interface{}{}, false},
+		{"telegram", map[string]interface{}{"bot_token": "t", "chat_id": "c"}, true},
+		{"telegram", map[string]interface{}{"bot_token": "t"}, false},
+		{"bark", map[string]interface{}{"device_key": "k"}, true},
+		{"bark", map[string]interface{}{}, false},
+		{"email", map[string]interface{}{"host": "h", "from": "f", "to": "t"}, true},
+		{"email", map[string]interface{}{"host": "h"}, false},
+		{"unknown", map[string]interface{}{}, false},
+	}
+	for _, c := range cases {
+		err := validateNotifyConfig(c.typ, c.cfg)
+		if c.ok && err != nil {
+			t.Errorf("%s 应通过,却报错: %v", c.typ, err)
+		}
+		if !c.ok && err == nil {
+			t.Errorf("%s 应失败,却通过", c.typ)
+		}
+	}
+}
+
+func TestSendWebhook(t *testing.T) {
+	var got map[string]string
+	done := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusOK)
+		done <- struct{}{}
+	}))
+	defer srv.Close()
+
+	cfgBytes, _ := json.Marshal(map[string]interface{}{"url": srv.URL})
+	if err := sendWebhook(string(cfgBytes), "标题", "内容"); err != nil {
+		t.Fatalf("sendWebhook: %v", err)
+	}
+	<-done
+	if got["title"] != "标题" || got["content"] != "内容" {
+		t.Fatalf("payload 不符: %+v", got)
+	}
+}
+
+func TestSendBark(t *testing.T) {
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfgBytes, _ := json.Marshal(map[string]interface{}{"server": srv.URL, "device_key": "mykey"})
+	if err := sendBark(string(cfgBytes), "hello", "world"); err != nil {
+		t.Fatalf("sendBark: %v", err)
+	}
+	if path != "/mykey/hello/world" {
+		t.Fatalf("bark path 不符: %s", path)
+	}
+}
+
+func TestBuildTaskResultMessage(t *testing.T) {
+	title, content := buildTaskResultMessage("每日备份", "success", 12.5)
+	if title != "任务执行成功" {
+		t.Fatalf("title 不符: %s", title)
+	}
+	if content == "" {
+		t.Fatal("content 为空")
+	}
+}

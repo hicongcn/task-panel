@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -609,6 +610,116 @@ func TestAuditLogs(t *testing.T) {
 		_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
 	}
 	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=audit_test.sh", token, nil)
+}
+
+// ---------- 通知渠道 ----------
+
+func TestNotifyChannels(t *testing.T) {
+	token := getToken(t)
+
+	// 创建 webhook 渠道
+	w := doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "测试 webhook", "type": "webhook", "enabled": false,
+		"config": map[string]interface{}{"url": "https://example.com/hook"},
+	})
+	assertCode(t, w, 201, 0, "create notify channel")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(decodeResp(t, w).Data, &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	id := uint(created.Data["id"].(float64))
+
+	// 列表
+	w = doRequest(t, "GET", "/api/v1/notify-channels", token, nil)
+	assertCode(t, w, 200, 0, "list notify channels")
+
+	// toggle
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/notify-channels/%d/toggle", id), token, map[string]interface{}{"enabled": true})
+	assertCode(t, w, 200, 0, "toggle notify channel")
+
+	// 非法类型应被拒绝
+	w = doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "bad", "type": "foo", "config": map[string]interface{}{},
+	})
+	assertCode(t, w, 400, 400, "invalid type rejected")
+
+	// 删除
+	w = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", id), token, nil)
+	assertCode(t, w, 200, 0, "delete notify channel")
+}
+
+// ---------- 任务结果通知(端到端) ----------
+
+func TestTaskResultNotify(t *testing.T) {
+	token := getToken(t)
+
+	// 本地 webhook 接收端
+	var mu sync.Mutex
+	var received []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		received = append(received, m)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// 创建并启用 webhook 渠道
+	w := doRequest(t, "POST", "/api/v1/notify-channels", token, map[string]interface{}{
+		"name": "e2e webhook", "type": "webhook", "enabled": true,
+		"config": map[string]interface{}{"url": srv.URL},
+	})
+	assertCode(t, w, 201, 0, "create webhook")
+	var ch struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &ch)
+	channelID := uint(ch.Data["id"].(float64))
+
+	// 保存脚本 + 创建任务
+	w = doRequest(t, "PUT", "/api/v1/scripts/content", token, map[string]string{
+		"path": "notify_test.sh", "content": "#!/bin/bash\necho ok\n",
+	})
+	assertCode(t, w, 200, 0, "save script")
+	w = doRequest(t, "POST", "/api/v1/tasks", token, map[string]interface{}{
+		"name": "通知测试", "command": "notify_test.sh", "cron_expression": "0 3 * * *", "enabled": false,
+	})
+	assertCode(t, w, 201, 0, "create task")
+	var created struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	taskID := uint(created.Data["id"].(float64))
+
+	// 运行任务
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/tasks/%d/run", taskID), token, nil)
+	assertCode(t, w, 200, 0, "run task")
+
+	// 等待通知到达
+	waitFor(t, 15*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) > 0
+	}, "task result notification")
+
+	mu.Lock()
+	got := received
+	mu.Unlock()
+	if len(got) == 0 {
+		t.Fatal("未收到任务结果通知")
+	}
+	if got[0]["title"] != "任务执行成功" {
+		t.Fatalf("通知标题不符: %+v", got[0])
+	}
+
+	// 清理
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/tasks/%d", taskID), token, nil)
+	_ = doRequest(t, "DELETE", "/api/v1/scripts?path=notify_test.sh", token, nil)
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/notify-channels/%d", channelID), token, nil)
 }
 
 // ---------- 助手 ----------

@@ -161,6 +161,9 @@ func (e *Executor) Run(task *model.Task) {
 		"last_run_status": finalRunStatus,
 		"last_run_duration": duration,
 	})
+
+	// 任务结果通知(best-effort,异步,失败不影响任务结算)
+	GetNotifyService().NotifyTaskResult(task.Name, finalRunStatus, duration)
 }
 
 // runWithRetries 执行重试循环,返回最终退出码与是否成功。

@@ -8,6 +8,7 @@
         <el-menu-item index="/scripts"><el-icon><Document /></el-icon><span>脚本管理</span></el-menu-item>
         <el-menu-item index="/envs"><el-icon><Key /></el-icon><span>环境变量</span></el-menu-item>
         <el-menu-item index="/logs"><el-icon><List /></el-icon><span>执行日志</span></el-menu-item>
+        <el-menu-item index="/notify"><el-icon><Bell /></el-icon><span>通知渠道</span></el-menu-item>
         <el-menu-item index="/audit"><el-icon><Tickets /></el-icon><span>审计日志</span></el-menu-item>
       </el-menu>
     </el-aside>
@@ -31,7 +32,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Monitor, Timer, Document, Key, List, Tickets, ArrowDown } from '@element-plus/icons-vue'
+import { Monitor, Timer, Document, Key, List, Tickets, Bell, ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
