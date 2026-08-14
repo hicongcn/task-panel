@@ -150,7 +150,33 @@ const (
 
 	AuditActionDepInstall   = "dep_install"
 	AuditActionDepUninstall = "dep_uninstall"
+
+	AuditActionOpenAppCreate  = "open_app_create"
+	AuditActionOpenAppUpdate  = "open_app_update"
+	AuditActionOpenAppDelete  = "open_app_delete"
+	AuditActionOpenAppReset   = "open_app_reset"
+	AuditActionOpenAuthFail   = "open_auth_fail"
 )
+
+// OpenAPI 开放接口的 scope 常量。
+const (
+	ScopeTasksRead = "tasks:read"
+	ScopeTasksRun  = "tasks:run"
+	ScopeLogsRead  = "logs:read"
+	ScopeEnvsRead  = "envs:read"
+)
+
+// OpenApp 开放平台应用(参考青龙 OpenAPI:client_id/secret + scopes)。
+type OpenApp struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Name         string    `gorm:"size:64;uniqueIndex" json:"name"`
+	ClientID     string    `gorm:"size:64;uniqueIndex" json:"client_id"`
+	ClientSecret string    `gorm:"size:128" json:"-"` // 仅创建/重置时返回一次
+	Scopes       string    `gorm:"type:text" json:"-"` // JSON 数组
+	Enabled      bool      `json:"enabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
 
 // NotifyChannel 通知渠道(webhook / telegram / bark / email)。
 // Config 存 JSON 文本,字段因类型而异,由 service 层解析。

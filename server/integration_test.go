@@ -914,6 +914,100 @@ func TestSystemStats(t *testing.T) {
 	}
 }
 
+// ---------- Open API ----------
+
+func TestOpenAPI(t *testing.T) {
+	token := getToken(t)
+
+	// 创建应用
+	w := doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
+		"name": "测试应用", "scopes": []string{"tasks:read", "tasks:run"},
+	})
+	assertCode(t, w, 201, 0, "create app")
+	var created struct {
+		Data struct {
+			ID           uint   `json:"id"`
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	if created.Data.ClientID == "" || created.Data.ClientSecret == "" {
+		t.Fatal("client_id/secret 不应为空")
+	}
+
+	// 保留字拒绝
+	w = doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
+		"name": "system", "scopes": []string{},
+	})
+	assertCode(t, w, 400, 400, "保留字拒绝")
+
+	// 非法 scope 拒绝
+	w = doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
+		"name": "x", "scopes": []string{"bad:scope"},
+	})
+	assertCode(t, w, 400, 400, "非法 scope 拒绝")
+
+	// 列表
+	w = doRequest(t, "GET", "/api/v1/open/apps", token, nil)
+	assertCode(t, w, 200, 0, "list apps")
+
+	// 错误密钥换 token → 401
+	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
+		"client_id": created.Data.ClientID, "client_secret": "wrong-secret",
+	})
+	assertCode(t, w, 401, 401, "错误 secret 拒绝")
+
+	// 正确换 token
+	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
+		"client_id": created.Data.ClientID, "client_secret": created.Data.ClientSecret,
+	})
+	assertCode(t, w, 200, 0, "换取 token")
+	var tok struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &tok)
+	if tok.Data.Token == "" {
+		t.Fatal("token 为空")
+	}
+	// 带 scope 的接口放行(tasks:read);doRequest 会自动加 "Bearer " 前缀
+	openAuth := tok.Data.Token
+	w = doRequest(t, "GET", "/api/v1/open/tasks", openAuth, nil)
+	assertCode(t, w, 200, 0, "open tasks 放行")
+
+	// 无对应 scope 的接口拒绝(logs:read 未授予)→ 403
+	w = doRequest(t, "GET", "/api/v1/open/logs", openAuth, nil)
+	if w.Code != 403 {
+		t.Fatalf("未授权 scope 应 403, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	// 无 token → 401
+	w = doRequest(t, "GET", "/api/v1/open/tasks", "", nil)
+	assertCode(t, w, 401, 401, "无 token 拒绝")
+
+	// 重置密钥后旧 secret 失效
+	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/open/apps/%d/reset-secret", created.Data.ID), token, nil)
+	assertCode(t, w, 200, 0, "reset secret")
+	var reset struct {
+		Data struct {
+			ClientSecret string `json:"client_secret"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &reset)
+	if reset.Data.ClientSecret == "" || reset.Data.ClientSecret == created.Data.ClientSecret {
+		t.Fatal("新 secret 应不同")
+	}
+	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
+		"client_id": created.Data.ClientID, "client_secret": created.Data.ClientSecret,
+	})
+	assertCode(t, w, 401, 401, "旧 secret 失效")
+
+	// 清理
+	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/open/apps/%d", created.Data.ID), token, nil)
+}
+
 // ---------- 助手 ----------
 
 var (

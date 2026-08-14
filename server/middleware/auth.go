@@ -18,17 +18,28 @@ import (
 
 // Claims 是 JWT 载荷。
 type Claims struct {
-	Username  string `json:"username"`
-	TokenType string `json:"token_type"` // access
+	Username  string   `json:"username"`
+	TokenType string   `json:"token_type"` // access / open
+	Scopes    []string `json:"scopes,omitempty"` // 仅 open 令牌携带
 	jwt.RegisteredClaims
 }
 
 // GenerateToken 签发访问令牌,返回 token 字符串与到期时间。
 func GenerateToken(username string, ttl time.Duration) (string, time.Time, error) {
+	return generateToken(username, "access", nil, ttl)
+}
+
+// GenerateOpenToken 签发 Open API 令牌(带权限范围)。
+func GenerateOpenToken(appName string, scopes []string, ttl time.Duration) (string, time.Time, error) {
+	return generateToken(appName, "open", scopes, ttl)
+}
+
+func generateToken(username, tokenType string, scopes []string, ttl time.Duration) (string, time.Time, error) {
 	expiresAt := time.Now().Add(ttl)
 	claims := Claims{
 		Username:  username,
-		TokenType: "access",
+		TokenType: tokenType,
+		Scopes:    scopes,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

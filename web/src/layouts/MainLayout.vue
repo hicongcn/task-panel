@@ -11,6 +11,7 @@
         <el-menu-item index="/notify"><el-icon><Bell /></el-icon><span>通知渠道</span></el-menu-item>
         <el-menu-item index="/backups"><el-icon><FolderOpened /></el-icon><span>备份恢复</span></el-menu-item>
         <el-menu-item index="/deps"><el-icon><Box /></el-icon><span>依赖管理</span></el-menu-item>
+        <el-menu-item index="/openapi"><el-icon><Connection /></el-icon><span>开放接口</span></el-menu-item>
         <el-menu-item index="/audit"><el-icon><Tickets /></el-icon><span>审计日志</span></el-menu-item>
       </el-menu>
     </el-aside>
@@ -34,7 +35,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Monitor, Timer, Document, Key, List, Tickets, Bell, FolderOpened, Box, ArrowDown } from '@element-plus/icons-vue'
+import { Monitor, Timer, Document, Key, List, Tickets, Bell, FolderOpened, Box, Connection, ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

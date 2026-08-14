@@ -31,7 +31,7 @@
 - [x] 系统监控仪表板(CPU/内存/磁盘)
 - [ ] 2FA / TOTP(登录双因素)
 - [ ] CLI 运维工具(账号恢复 / 日志清理 / 任务触发)
-- [ ] Open API(参考青龙结构:应用管理 + client_id/secret + token + scopes)
+- [x] Open API(参考青龙结构:应用管理 + client_id/secret + token + scopes)
 
 > 已决定不做:Windows 免安装打包。
 
