@@ -25,12 +25,30 @@ const openTokenTTL = 365 * 24 * time.Hour
 const reservedAppName = "system"
 
 // ValidScopes 返回可用的 scope 及中文说明。
+// 除本项目原生 scope 外,兼容青龙(whyour/qinglong)的模块权限命名,
+// 以便青龙生态客户端直接使用。
 func ValidScopes() map[string]string {
 	return map[string]string{
+		// 本项目原生
 		model.ScopeTasksRead: "查看任务",
 		model.ScopeTasksRun:  "触发任务运行",
 		model.ScopeLogsRead:  "查看执行日志",
 		model.ScopeEnvsRead:  "查看环境变量",
+		// 青龙兼容 scope
+		"crontab:read":       "青龙:定时任务读取",
+		"crontab:write":      "青龙:定时任务写入(增删改/运行/停止)",
+		"env:read":           "青龙:环境变量读取",
+		"env:write":          "青龙:环境变量写入",
+		"log:read":           "青龙:日志读取",
+		"system:read":        "青龙:系统信息读取",
+		"config:read":        "青龙:配置读取",
+		"config:write":       "青龙:配置写入",
+		"script:read":        "青龙:脚本读取",
+		"script:write":       "青龙:脚本写入",
+		"dependence:read":    "青龙:依赖读取",
+		"dependence:write":   "青龙:依赖写入",
+		"subscription:read":  "青龙:订阅读取",
+		"subscription:write": "青龙:订阅写入",
 	}
 }
 

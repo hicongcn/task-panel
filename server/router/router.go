@@ -13,6 +13,9 @@ func Setup(engine *gin.Engine) {
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS())
 
+	// 青龙兼容 API(/open 前缀,独立于 /api/v1)
+	handler.RegisterQinglongCompat(engine)
+
 	v1 := engine.Group("/api/v1")
 	v1.Use(middleware.MaxBodySize(100 << 20)) // 限制 API 请求体 100MB(含备份恢复上传)
 

@@ -17,7 +17,7 @@
 - **系统监控**:仪表板实时展示 CPU / 内存 / 磁盘 / 负载 / 运行时长(3 秒自动刷新)。
 - **双重认证**:RFC 6238 TOTP,扫码绑定,登录强制动态码;丢失验证器可用 CLI 兜底恢复。
 - **CLI 运维工具**:同一二进制子命令 —— `account-reset`(重置密码/关 2FA)、`log-clean`(清理旧日志)、`task-trigger`(触发任务)。
-- **Open API**(参考青龙结构):应用管理(client_id/secret + scopes)→ `POST /open/auth/token` 换令牌 → Bearer 调用 `/open/tasks` 等开放接口。
+- **Open API(青龙兼容)**:按青龙 OpenAPI 规范实现 —— `GET /open/auth/token?client_id&client_secret` 换令牌(Bearer),`/open/app` 应用管理(创建/更新/批量删除/重置密钥),`/open/crontab`(任务 CRUD/运行/停止/启停/批量删)、`/open/env`(环境变量 CRUD/状态/批量删)、`/open/log`、`/open/system`、`/open/config`、`/open/script`、`/open/dependence`、`/open/subscription`;scope 同时支持青龙模块权限(crontab:read/write 等)与本项目原生权限,可无缝替代青龙面板对接生态客户端。
 - **安全基线**:JWT 黑名单吊销、CORS 严格白名单(拒绝 null origin)、IP 解析默认仅信任回环、**可选 IP 访问白名单**(`IP_WHITELIST`)、2FA、安全响应头、请求体上限。
 
 ## 技术栈
