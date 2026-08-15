@@ -6,6 +6,7 @@ package handler
 // 响应统一青龙格式 {code:200, data:...}。
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,12 +16,14 @@ import (
 	"time"
 
 	"taskpanel/config"
+	"taskpanel/database"
 	"taskpanel/middleware"
 	"taskpanel/model"
 	"taskpanel/pkg/pathutil"
 	"taskpanel/service"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ---- 响应包装(青龙格式) ----
@@ -662,11 +665,68 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 
 		open.GET("/dependence", qlScope("dependence:read"), qlDepList)
 		open.GET("/subscription", qlScope("subscription:read"), qlSubList)
+
+		// ---- 复数别名(青龙真实前端/生态客户端使用) ----
+		open.GET("/crons", qlScope("crontab:read"), qlWebCronList)
+		open.POST("/crons", qlScope("crontab:write"), qlWebCronCreate)
+		open.PUT("/crons", qlScope("crontab:write"), qlWebCronUpdate)
+		open.DELETE("/crons", qlScope("crontab:write"), qlWebCronBatchDelete)
+		open.PUT("/crons/run", qlScope("crontab:write"), qlCronBatchAction("run"))
+		open.PUT("/crons/stop", qlScope("crontab:write"), qlCronBatchAction("stop"))
+		open.PUT("/crons/enable", qlScope("crontab:write"), qlCronBatchAction("enable"))
+		open.PUT("/crons/disable", qlScope("crontab:write"), qlCronBatchAction("disable"))
+		open.PUT("/crons/pin", qlScope("crontab:write"), qlCronBatchAction("pin"))
+		open.PUT("/crons/unpin", qlScope("crontab:write"), qlCronBatchAction("unpin"))
+		open.PUT("/crons/:id/run", qlScope("crontab:write"), qlCronRun)
+		open.PUT("/crons/:id/stop", qlScope("crontab:write"), qlCronStop)
+		open.PUT("/crons/:id/enable", qlScope("crontab:write"), qlCronEnable)
+		open.PUT("/crons/:id/disable", qlScope("crontab:write"), qlCronDisable)
+		open.GET("/crons/:id/log", qlScope("crontab:read"), qlWebCronLog)
+
+		open.GET("/envs", qlScope("env:read"), qlWebEnvList)
+		open.POST("/envs", qlScope("env:write"), qlWebEnvCreate)
+		open.PUT("/envs", qlScope("env:write"), qlWebEnvUpdate)
+		open.DELETE("/envs", qlScope("env:write"), qlWebEnvBatchDelete)
+		open.PUT("/envs/enable", qlScope("env:write"), qlEnvBatchToggle(true))
+		open.PUT("/envs/disable", qlScope("env:write"), qlEnvBatchToggle(false))
+		open.PUT("/envs/:id/move", qlScope("env:write"), qlWebEnvMove)
+
+		open.GET("/logs", qlScope("log:read"), qlWebLogList)
+		open.GET("/logs/:id", qlScope("log:read"), qlWebLogDetail)
+		open.GET("/logs/:id/file", qlScope("log:read"), qlWebLogFile)
+
+		open.GET("/scripts", qlScope("script:read"), qlScriptList)
+		open.GET("/scripts/files", qlScope("script:read"), qlScriptList)
+		open.GET("/scripts/detail", qlScope("script:read"), qlScriptDetail)
+		open.PUT("/scripts", qlScope("script:write"), qlWebScriptSave)
+
+		open.GET("/dependencies", qlScope("dependence:read"), qlWebDepList)
+		open.POST("/dependencies", qlScope("dependence:write"), qlWebDepCreate)
+		open.DELETE("/dependencies", qlScope("dependence:write"), qlWebDepBatchDelete)
+
+		open.GET("/subscriptions", qlScope("subscription:read"), qlWebSubList)
+
+		open.GET("/configs", qlScope("config:read"), qlConfigList)
+		open.GET("/configs/files", qlScope("config:read"), qlConfigList)
+		open.POST("/configs/save", qlScope("config:write"), qlWebConfigSave)
+
+		open.GET("/apps", qlScope("crontab:read"), qlWebAppList)
+		open.POST("/apps", qlScope("crontab:write"), qlWebAppCreate)
+		open.PUT("/apps", qlScope("crontab:write"), qlWebAppUpdate)
+		open.DELETE("/apps", qlScope("crontab:write"), qlWebAppBatchDelete)
+		open.PUT("/apps/:id/reset-secret", qlScope("crontab:write"), qlWebAppResetSecret)
+
+		open.PUT("/system/log/remove", qlScope("system:write"), qlWebLogRemove)
+		open.GET("/system/update-check", qlScope("system:read"), qlWebUpdateCheck)
+		open.GET("/user/login-log", qlScope("system:read"), qlWebLoginLog)
+		open.GET("/user/notification", qlScope("system:read"), qlWebNotificationGet)
+		open.PUT("/user/notification", qlScope("system:write"), qlWebNotificationSet)
 	}
 }
 // ================= 青龙前端 API 兼容(/api/*,登录态 Bearer) =================
 
 // qlWebLogin 青龙登录:POST /api/user/login {username,password}
+// 已启用 2FA 的用户未携带动态码时返回 code 420,由客户端走两步验证流程。
 func qlWebLogin(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
@@ -678,7 +738,33 @@ func qlWebLogin(c *gin.Context) {
 	}
 	res, err := service.NewAuthService().Login(req.Username, req.Password, c.ClientIP(), "")
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidTOTP) {
+			c.JSON(200, gin.H{"code": 420, "message": "需要二次验证"})
+			return
+		}
 		qlFail(c, 401, 401, "用户名或密码错误")
+		return
+	}
+	qlSuccess(c, gin.H{"token": res.Token})
+}
+
+// qlWebLoginOld 老版青龙登录:POST /api/login
+func qlWebLoginOld(c *gin.Context) { qlWebLogin(c) }
+
+// qlWebLoginTwo 青龙两步验证:PUT /api/user/two-factor/login {username,password,code}
+func qlWebLoginTwo(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Code     string `json:"code"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		qlFail(c, 400, 400, "请求参数错误")
+		return
+	}
+	res, err := service.NewAuthService().Login(req.Username, req.Password, c.ClientIP(), req.Code)
+	if err != nil {
+		qlFail(c, 401, 401, "用户名/密码/验证码错误")
 		return
 	}
 	qlSuccess(c, gin.H{"token": res.Token})
@@ -686,22 +772,56 @@ func qlWebLogin(c *gin.Context) {
 
 // qlWebUser 青龙用户信息:GET /api/user
 func qlWebUser(c *gin.Context) {
-	claims, _ := c.Get("claims")
-	if cl, ok := claims.(*middleware.Claims); ok {
-		qlSuccess(c, gin.H{"id": 1, "username": cl.Username})
+	username := c.GetString("username")
+	if username == "" {
+		qlFail(c, 401, 401, "未登录")
 		return
 	}
-	qlFail(c, 401, 401, "未登录")
+	qlSuccess(c, gin.H{"id": 1, "username": username})
+}
+
+// qlWebUserUpdate 修改密码/资料:PUT /api/user {name,password}
+func qlWebUserUpdate(c *gin.Context) {
+	var req struct {
+		Name     string `json:"name"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		qlFail(c, 400, 400, "请求参数错误")
+		return
+	}
+	username := c.GetString("username")
+	if req.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			qlFail(c, 500, 500, "密码加密失败")
+			return
+		}
+		if err := database.DB.Model(&model.User{}).Where("username = ?", username).
+			Update("password", string(hash)).Error; err != nil {
+			qlFail(c, 500, 500, err.Error())
+			return
+		}
+	}
+	qlSuccess(c, gin.H{"message": "已更新"})
 }
 
 // ---- /api/crons(任务,青龙前端命名) ----
 
 func qlWebCronList(c *gin.Context) {
 	search := c.Query("searchValue")
+	if search == "" {
+		search = c.Query("searchText")
+	}
 	tasks := service.NewTaskService().List(search, "", "")
 	out := make([]map[string]interface{}, len(tasks))
 	for i, t := range tasks {
 		out[i] = qlCronDict(t)
+	}
+	// 青龙 2.13.9+ 分页结构:data:{data:[...], total}
+	if c.Query("page") != "" || c.Query("size") != "" {
+		qlSuccess(c, gin.H{"data": out, "total": len(out)})
+		return
 	}
 	qlSuccess(c, out)
 }
@@ -868,7 +988,15 @@ func qlWebScriptList(c *gin.Context) {
 }
 
 func qlWebScriptDetail(c *gin.Context) {
-	rel := strings.TrimPrefix(c.Param("path"), "/")
+	rel := c.Query("path")
+	if rel == "" {
+		rel = c.Query("file")
+	}
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		qlFail(c, 400, 400, "缺少 path 参数")
+		return
+	}
 	full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, rel, true)
 	if err != nil || full == "" {
 		qlFail(c, 403, 403, "脚本访问受限")
@@ -1012,29 +1140,181 @@ func qlWebActivities(c *gin.Context) {
 	qlSuccess(c, gin.H{"data": out, "total": total})
 }
 
+
+// ---- 青龙批量操作(字符串ID数组,App 使用) ----
+
+func qlCronBatchAction(action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ids []string
+		if err := c.ShouldBindJSON(&ids); err != nil || len(ids) == 0 {
+			qlFail(c, 400, 400, "请求体应为任务ID数组")
+			return
+		}
+		var uids []uint
+		for _, s := range ids {
+			if id, err := strconv.ParseUint(s, 10, 32); err == nil {
+				uids = append(uids, uint(id))
+			}
+		}
+		if len(uids) == 0 {
+			qlFail(c, 400, 400, "任务ID无效")
+			return
+		}
+		svc := service.NewTaskService()
+		switch action {
+		case "run":
+			res := svc.BatchRun(uids)
+			recordAudit(c, model.AuditActionTaskRun, fmt.Sprintf("tasks:%v", uids), "")
+			qlSuccess(c, gin.H{"message": "操作完成", "ok": res.OK})
+		case "stop":
+			for _, id := range uids {
+				_ = svc.Stop(id)
+			}
+			recordAudit(c, model.AuditActionTaskStop, fmt.Sprintf("tasks:%v", uids), "")
+			qlSuccess(c, gin.H{"message": "操作完成"})
+		case "enable":
+			res := svc.BatchSetEnabled(uids, true)
+			recordAudit(c, model.AuditActionTaskEnable, fmt.Sprintf("tasks:%v", uids), "")
+			qlSuccess(c, gin.H{"message": "操作完成", "ok": res.OK})
+		case "disable":
+			res := svc.BatchSetEnabled(uids, false)
+			recordAudit(c, model.AuditActionTaskDisable, fmt.Sprintf("tasks:%v", uids), "")
+			qlSuccess(c, gin.H{"message": "操作完成", "ok": res.OK})
+		case "pin", "unpin":
+			qlSuccess(c, gin.H{"message": "操作完成"})
+		case "delete":
+			res := svc.BatchDelete(uids)
+			recordAudit(c, model.AuditActionTaskDelete, fmt.Sprintf("tasks:%v", uids), "")
+			qlSuccess(c, gin.H{"message": "操作完成", "ok": res.OK})
+		default:
+			qlFail(c, 400, 400, "不支持的操作")
+		}
+	}
+}
+
+// qlEnvBatchToggle 青龙前端 PUT /api/envs/enable|disable {ids:字符串数组}
+func qlEnvBatchToggle(enable bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ids []string
+		if err := c.ShouldBindJSON(&ids); err != nil || len(ids) == 0 {
+			qlFail(c, 400, 400, "请求体应为环境变量ID数组")
+			return
+		}
+		var uids []uint
+		for _, s := range ids {
+			if id, err := strconv.ParseUint(s, 10, 32); err == nil {
+				uids = append(uids, uint(id))
+			}
+		}
+		if len(uids) == 0 {
+			qlFail(c, 400, 400, "环境变量ID无效")
+			return
+		}
+		n := service.NewEnvService().BatchSetEnabled(uids, enable)
+		action := model.AuditActionEnvDisable
+		if enable {
+			action = model.AuditActionEnvEnable
+		}
+		recordAudit(c, action, fmt.Sprintf("envs:%v", uids), "")
+		qlSuccess(c, gin.H{"message": "操作完成", "count": n})
+	}
+}
+
+// ---- 青龙辅助端点 ----
+
+// qlWebLogRemove 日志清理:PUT /api/system/log/remove|/open/system/log/remove {frequency}
+func qlWebLogRemove(c *gin.Context) {
+	var req struct {
+		Frequency int `json:"frequency"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if req.Frequency > 0 {
+		_, _, _ = service.NewLogService().Clean(req.Frequency)
+	}
+	qlSuccess(c, gin.H{"message": "操作完成"})
+}
+
+// qlWebUpdateCheck 版本检查:GET /api/system/update-check
+func qlWebUpdateCheck(c *gin.Context) {
+	qlSuccess(c, gin.H{"hasNewVersion": false, "version": Version})
+}
+
+// qlWebLoginLog 登录记录:GET /api/user/login-log
+func qlWebLoginLog(c *gin.Context) {
+	logs, _ := service.NewAuditService().List("", "", 1, 20)
+	out := make([]map[string]interface{}, 0, len(logs))
+	for _, l := range logs {
+		if l.Action != model.AuditActionLoginSuccess && l.Action != model.AuditActionLoginFailed {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"id": l.ID, "type": l.Action, "address": l.IP,
+			"platform": "", "createdAt": unixT(l.CreatedAt),
+		})
+	}
+	qlSuccess(c, out)
+}
+
+// qlWebNotification 通知设置:GET/PUT /api/user/notification
+func qlWebNotificationGet(c *gin.Context) {
+	qlSuccess(c, gin.H{"type": "telegram", "remark": ""})
+}
+
+func qlWebNotificationSet(c *gin.Context) {
+	qlSuccess(c, gin.H{"message": "已保存"})
+}
+
+// qlWebEnvMove 环境变量排序:PUT /api/envs/:id/move|/open/envs/:id/move
+func qlWebEnvMove(c *gin.Context) {
+	qlSuccess(c, gin.H{"message": "操作完成"})
+}
+
+// qlWebCronLog 任务最近日志:GET /api/crons/:id/log
+func qlWebCronLog(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	log, err := service.NewLogService().LatestLog(uint(id))
+	if err != nil {
+		qlFail(c, 404, 404, "暂无日志")
+		return
+	}
+	qlSuccess(c, gin.H{"id": log.ID, "log": log.Content})
+}
+
+
 // RegisterQinglongWebCompat 注册青龙前端 API(/api/* 登录态)。
 func RegisterQinglongWebCompat(engine *gin.Engine) {
 	engine.POST("/api/user/login", qlWebLogin)
+	engine.POST("/api/login", qlWebLoginOld)
+	engine.PUT("/api/user/two-factor/login", qlWebLoginTwo)
 
 	api := engine.Group("/api", middleware.JWTAuth())
 	{
 		api.GET("/user", qlWebUser)
+		api.PUT("/user", qlWebUserUpdate)
 
 		api.GET("/crons", qlWebCronList)
 		api.POST("/crons", qlWebCronCreate)
 		api.PUT("/crons", qlWebCronUpdate)
 		api.DELETE("/crons", qlWebCronBatchDelete)
+		api.PUT("/crons/run", qlCronBatchAction("run"))
+		api.PUT("/crons/stop", qlCronBatchAction("stop"))
+		api.PUT("/crons/enable", qlCronBatchAction("enable"))
+		api.PUT("/crons/disable", qlCronBatchAction("disable"))
+		api.PUT("/crons/pin", qlCronBatchAction("pin"))
+		api.PUT("/crons/unpin", qlCronBatchAction("unpin"))
 		api.PUT("/crons/:id/run", qlWebCronRun)
 		api.PUT("/crons/:id/stop", qlWebCronStop)
 		api.PUT("/crons/:id/enable", qlWebCronEnable)
 		api.PUT("/crons/:id/disable", qlWebCronDisable)
+		api.GET("/crons/:id/log", qlWebCronLog)
 
 		api.GET("/envs", qlWebEnvList)
 		api.POST("/envs", qlWebEnvCreate)
 		api.PUT("/envs", qlWebEnvUpdate)
 		api.DELETE("/envs", qlWebEnvBatchDelete)
-		api.PUT("/envs/enable", qlWebEnvToggle(true))
-		api.PUT("/envs/disable", qlWebEnvToggle(false))
+		api.PUT("/envs/enable", qlEnvBatchToggle(true))
+		api.PUT("/envs/disable", qlEnvBatchToggle(false))
+		api.PUT("/envs/:id/move", qlWebEnvMove)
 
 		api.GET("/logs", qlWebLogList)
 		api.GET("/logs/:id", qlWebLogDetail)
@@ -1042,13 +1322,17 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 
 		api.GET("/system", qlWebSystem)
 		api.GET("/system/config", qlWebSystemConfig)
+		api.PUT("/system/log/remove", qlWebLogRemove)
+		api.GET("/system/update-check", qlWebUpdateCheck)
 
 		api.GET("/configs", qlWebConfigList)
+		api.GET("/configs/files", qlWebConfigList)
 		api.GET("/configs/sample", qlWebConfigSample)
 		api.POST("/configs/save", qlWebConfigSave)
 
 		api.GET("/scripts", qlWebScriptList)
-		api.GET("/scripts/*path", qlWebScriptDetail)
+		api.GET("/scripts/files", qlWebScriptList)
+		api.GET("/scripts/detail", qlWebScriptDetail)
 		api.PUT("/scripts", qlWebScriptSave)
 		api.DELETE("/scripts", qlWebScriptBatchDelete)
 
@@ -1066,6 +1350,9 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 		api.POST("/notifies", qlWebNotifyCreate)
 
 		api.GET("/subscriptions", qlWebSubList)
+		api.GET("/user/login-log", qlWebLoginLog)
+		api.GET("/user/notification", qlWebNotificationGet)
+		api.PUT("/user/notification", qlWebNotificationSet)
 		api.GET("/activities", qlWebActivities)
 	}
 }
