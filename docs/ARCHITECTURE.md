@@ -71,6 +71,10 @@ HTTP (handler)  →  业务 (service)  →  数据 (model / database)
 
 - Docker:多阶段(前端构建 → 后端编译 → alpine 运行时),Go 二进制直接托管前端 dist,无需 nginx。
 - 镜像以非 root 用户运行。
+- SQLite 使用纯 Go 驱动(`github.com/glebarez/sqlite`,基于 modernc.org/sqlite),后端编译强制 `CGO_ENABLED=0`:
+  - 产物为**静态链接单二进制**,无 glibc/musl 依赖,可直接拷贝到任意目标机运行;
+  - 交叉编译零 C 工具链(`GOOS=linux/windows/freebsd GOARCH=amd64/arm64/386` 等直接产出);
+  - 注意:自定义类型写入需返回 `string` 而非 `[]byte`,否则纯 Go 驱动会按 BLOB 存储导致文本匹配(LIKE)失效(见 `model/stringlist.go` 注释)。
 
 ## 双因素认证 (`pkg/totp` + auth)
 

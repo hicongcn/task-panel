@@ -22,7 +22,7 @@
 
 ## 技术栈
 
-- 后端:Go 1.22+ / Gin / GORM / SQLite(纯 Go 驱动,`CGO_ENABLED=0` 单二进制)
+- 后端:Go 1.22+ / Gin / GORM / SQLite(`github.com/glebarez/sqlite` 纯 Go 驱动,基于 modernc.org/sqlite;`CGO_ENABLED=0` 静态单二进制,可交叉编译任意主流平台)
 - 前端:Vue 3 + TypeScript + Vite + Element Plus + Pinia
 - 调度:robfig/cron/v3
 
@@ -68,15 +68,18 @@ cd web && npm install && npm run dev          # http://localhost:5173
 ## 测试
 
 ```bash
-cd server && go test ./...      # 路径穿越 / Cron / 票据 / 校验 / 命令拆分
+cd server && go test ./...      # 路径穿越 / Cron / 票据 / 校验 / 命令拆分 / 集成测试
 cd web && npm run build          # 前端类型检查 + 构建
 ```
+
+测试基线为三层:后端单元测试、后端集成测试(integration_test.go,真实 HTTP 引擎)、前端构建;并在 `CGO_ENABLED=0` 下全部通过。详见 [全栈测试报告](docs/TESTING.md)。
 
 ## 文档
 
 - [架构设计](docs/ARCHITECTURE.md)
 - [安全设计](docs/SECURITY.md)
 - [路线图](docs/ROADMAP.md)
+- [全栈测试报告](docs/TESTING.md)
 
 ## License
 

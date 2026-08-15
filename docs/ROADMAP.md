@@ -49,6 +49,7 @@
 - [x] 自定义推送模板
 - [x] 系统事件告警
 - [x] 拖拽排序/移动(环境变量排序、脚本树拖拽)
+- [x] 工程化:SQLite 换纯 Go 驱动(glebarez/modernc),`CGO_ENABLED=0` 静态单二进制 + 多平台交叉编译;补充全栈测试报告(docs/TESTING.md)
 
 ## 设计原则
 
