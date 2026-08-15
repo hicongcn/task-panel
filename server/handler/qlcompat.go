@@ -720,6 +720,7 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 
 		// ---- 复数别名(青龙真实前端/生态客户端使用) ----
 		open.GET("/crons", qlScope("crontab:read"), qlWebCronList)
+		open.GET("/crons/:id", qlScope("crontab:read"), qlWebCronGet)
 		open.POST("/crons", qlScope("crontab:write"), qlWebCronCreate)
 		open.PUT("/crons", qlScope("crontab:write"), qlWebCronUpdate)
 		open.DELETE("/crons", qlScope("crontab:write"), qlWebCronBatchDelete)
@@ -751,17 +752,32 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 		open.GET("/scripts", qlScope("script:read"), qlScriptList)
 		open.GET("/scripts/files", qlScope("script:read"), qlScriptList)
 		open.GET("/scripts/detail", qlScope("script:read"), qlScriptDetail)
+		open.GET("/scripts/:name", qlScope("script:read"), qlWebScriptGet)
+		open.POST("/scripts", qlScope("script:write"), qlWebScriptCreate)
 		open.PUT("/scripts", qlScope("script:write"), qlWebScriptSave)
+		open.DELETE("/scripts", qlScope("script:write"), qlWebScriptDeleteByName)
 
 		open.GET("/dependencies", qlScope("dependence:read"), qlWebDepList)
 		open.POST("/dependencies", qlScope("dependence:write"), qlWebDepCreate)
 		open.DELETE("/dependencies", qlScope("dependence:write"), qlWebDepBatchDelete)
+		open.DELETE("/dependencies/force", qlScope("dependence:write"), qlWebDepBatchDelete)
+		open.PUT("/dependencies/reinstall", qlScope("dependence:write"), qlSubNoop)
+		open.GET("/dependencies/:id", qlScope("dependence:read"), qlSubNoop)
 
 		open.GET("/subscriptions", qlScope("subscription:read"), qlWebSubList)
+		open.POST("/subscriptions", qlScope("subscription:write"), qlSubNoop)
+		open.PUT("/subscriptions", qlScope("subscription:write"), qlSubNoop)
+		open.DELETE("/subscriptions", qlScope("subscription:write"), qlSubNoop)
+		open.PUT("/subscriptions/run", qlScope("subscription:write"), qlSubNoop)
+		open.PUT("/subscriptions/stop", qlScope("subscription:write"), qlSubNoop)
+		open.PUT("/subscriptions/enable", qlScope("subscription:write"), qlSubNoop)
+		open.PUT("/subscriptions/disable", qlScope("subscription:write"), qlSubNoop)
+		open.GET("/subscriptions/:id/log", qlScope("subscription:read"), qlSubNoop)
 
 		open.GET("/configs", qlScope("config:read"), qlConfigList)
 		open.GET("/configs/files", qlScope("config:read"), qlConfigList)
 		open.POST("/configs/save", qlScope("config:write"), qlWebConfigSave)
+		open.GET("/configs/:name", qlScope("config:read"), qlWebConfigDetail)
 
 		open.GET("/apps", qlScope("crontab:read"), qlWebAppList)
 		open.POST("/apps", qlScope("crontab:write"), qlWebAppCreate)
@@ -769,6 +785,7 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 		open.DELETE("/apps", qlScope("crontab:write"), qlWebAppBatchDelete)
 		open.PUT("/apps/:id/reset-secret", qlScope("crontab:write"), qlWebAppResetSecret)
 
+		open.GET("/system/log/remove", qlScope("system:read"), qlWebLogRemove)
 		open.PUT("/system/log/remove", qlScope("system:write"), qlWebLogRemove)
 		open.GET("/system/update-check", qlScope("system:read"), qlWebUpdateCheck)
 		open.GET("/user/login-log", qlScope("system:read"), qlWebLoginLog)
@@ -1199,6 +1216,138 @@ func qlWebActivities(c *gin.Context) {
 }
 
 
+
+// ---- 补全 App 缺失端点 ----
+
+// qlWebCronGet 任务详情:GET /api/crons/:id
+func qlWebCronGet(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	task, err := service.NewTaskService().Get(uint(id))
+	if err != nil {
+		qlFail(c, 404, 404, "任务不存在")
+		return
+	}
+	qlSuccess(c, qlCronDict(*task))
+}
+
+// qlWebConfigDetail 配置详情:GET /api/configs/:name(data 为字符串)
+func qlWebConfigDetail(c *gin.Context) {
+	name := c.Param("name")
+	cfg := service.NewSystemConfigService().GetConfig()
+	if v, ok := cfg[name]; ok {
+		qlSuccess(c, fmt.Sprint(v))
+		return
+	}
+	qlFail(c, 404, 404, "配置不存在: "+name)
+}
+
+// qlWebScriptGet 脚本详情:GET /api/scripts/:name?path=(data 为字符串)
+func qlWebScriptGet(c *gin.Context) {
+	name := c.Param("name")
+	path := c.Query("path")
+	rel := filepath.Join(path, name)
+	full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, rel, true)
+	if err != nil || full == "" {
+		qlFail(c, 404, 404, "脚本不存在")
+		return
+	}
+	b, rerr := os.ReadFile(full)
+	if rerr != nil {
+		qlFail(c, 404, 404, "脚本不存在")
+		return
+	}
+	qlSuccess(c, string(b))
+}
+
+// qlWebScriptCreate 创建脚本/目录:POST /api/scripts {filename,path,content|directory}
+func qlWebScriptCreate(c *gin.Context) {
+	var req struct {
+		Filename    string `json:"filename"`
+		Path        string `json:"path"`
+		Content     string `json:"content"`
+		Directory   string `json:"directory"`
+		OriginFilename string `json:"originFilename"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		qlFail(c, 400, 400, "请求参数错误")
+		return
+	}
+	if req.Directory != "" {
+		dir, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, req.Directory, false)
+		if err != nil || dir == "" {
+			qlFail(c, 403, 403, "目录路径受限")
+			return
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			qlFail(c, 500, 500, err.Error())
+			return
+		}
+		recordAudit(c, model.AuditActionScriptCreate, req.Directory, "")
+		qlSuccess(c, gin.H{"message": "目录已创建"})
+		return
+	}
+	name := req.Filename
+	if name == "" {
+		name = req.OriginFilename
+	}
+	rel := filepath.Join(req.Path, name)
+	if rel == "" {
+		qlFail(c, 400, 400, "缺少 filename")
+		return
+	}
+	full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, rel, false)
+	if err != nil || full == "" {
+		qlFail(c, 403, 403, "脚本路径受限")
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		qlFail(c, 500, 500, err.Error())
+		return
+	}
+	if err := os.WriteFile(full, []byte(req.Content), 0o644); err != nil {
+		qlFail(c, 500, 500, err.Error())
+		return
+	}
+	recordAudit(c, model.AuditActionScriptSave, rel, "")
+	qlSuccess(c, gin.H{"message": "保存成功"})
+}
+
+// qlWebScriptDeleteByName 删除脚本:DELETE /api/scripts {filename,path}|{paths:[]}
+func qlWebScriptDeleteByName(c *gin.Context) {
+	var req struct {
+		Filename string `json:"filename"`
+		Path     string `json:"path"`
+		Paths    []string `json:"paths"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		qlFail(c, 400, 400, "请求参数错误")
+		return
+	}
+	targets := req.Paths
+	if req.Filename != "" {
+		targets = append(targets, filepath.Join(req.Path, req.Filename))
+	}
+	if len(targets) == 0 {
+		qlFail(c, 400, 400, "缺少 filename/paths")
+		return
+	}
+	deleted := 0
+	for _, p := range targets {
+		full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, p, false)
+		if err != nil || full == "" {
+			continue
+		}
+		if err := os.RemoveAll(full); err == nil {
+			deleted++
+		}
+	}
+	recordAudit(c, model.AuditActionScriptDelete, fmt.Sprintf("scripts:%v", targets), "")
+	qlSuccess(c, gin.H{"message": "已删除", "deleted": deleted})
+}
+
+// qlSubNoop 订阅/依赖空操作(本项目不支持,返回成功)
+func qlSubNoop(c *gin.Context) { qlSuccess(c, gin.H{"message": "操作完成"}) }
+
 // ---- 青龙批量操作(字符串ID数组,App 使用) ----
 
 func qlCronBatchAction(action string) gin.HandlerFunc {
@@ -1356,6 +1505,7 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 		api.PUT("/user", qlWebUserUpdate)
 
 		api.GET("/crons", qlWebCronList)
+		api.GET("/crons/:id", qlWebCronGet)
 		api.POST("/crons", qlWebCronCreate)
 		api.PUT("/crons", qlWebCronUpdate)
 		api.DELETE("/crons", qlWebCronBatchDelete)
@@ -1386,6 +1536,7 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 
 		api.GET("/system", qlWebSystem)
 		api.GET("/system/config", qlWebSystemConfig)
+		api.GET("/system/log/remove", qlWebLogRemove)
 		api.PUT("/system/log/remove", qlWebLogRemove)
 		api.GET("/system/update-check", qlWebUpdateCheck)
 
@@ -1393,16 +1544,24 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 		api.GET("/configs/files", qlWebConfigList)
 		api.GET("/configs/sample", qlWebConfigSample)
 		api.POST("/configs/save", qlWebConfigSave)
+		api.GET("/configs/:name", qlWebConfigDetail)
 
 		api.GET("/scripts", qlWebScriptList)
 		api.GET("/scripts/files", qlWebScriptList)
 		api.GET("/scripts/detail", qlWebScriptDetail)
+		api.GET("/scripts/:name", qlWebScriptGet)
+		api.POST("/scripts", qlWebScriptCreate)
 		api.PUT("/scripts", qlWebScriptSave)
-		api.DELETE("/scripts", qlWebScriptBatchDelete)
+		api.DELETE("/scripts", qlWebScriptDeleteByName)
 
 		api.GET("/dependencies", qlWebDepList)
 		api.POST("/dependencies", qlWebDepCreate)
 		api.DELETE("/dependencies", qlWebDepBatchDelete)
+		api.DELETE("/dependencies/force", qlWebDepBatchDelete)
+		api.PUT("/dependencies/reinstall", qlSubNoop)
+		api.POST("/dependencies/install", qlSubNoop)
+		api.POST("/dependencies/uninstall", qlSubNoop)
+		api.GET("/dependencies/:id", qlSubNoop)
 
 		api.GET("/apps", qlWebAppList)
 		api.POST("/apps", qlWebAppCreate)
@@ -1414,6 +1573,14 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 		api.POST("/notifies", qlWebNotifyCreate)
 
 		api.GET("/subscriptions", qlWebSubList)
+		api.POST("/subscriptions", qlSubNoop)
+		api.PUT("/subscriptions", qlSubNoop)
+		api.DELETE("/subscriptions", qlSubNoop)
+		api.PUT("/subscriptions/run", qlSubNoop)
+		api.PUT("/subscriptions/stop", qlSubNoop)
+		api.PUT("/subscriptions/enable", qlSubNoop)
+		api.PUT("/subscriptions/disable", qlSubNoop)
+		api.GET("/subscriptions/:id/log", qlSubNoop)
 		api.GET("/user/login-log", qlWebLoginLog)
 		api.GET("/user/notification", qlWebNotificationGet)
 		api.PUT("/user/notification", qlWebNotificationSet)
