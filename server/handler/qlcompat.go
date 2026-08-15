@@ -204,19 +204,42 @@ func qlRunStatus(s string) interface{} {
 	}
 }
 
+// qlCronDict 输出青龙 TaskBean 完整字段。
+// 注意:App 的 TaskBean.fromJson 对 name/command/schedule/created/timestamp/
+// log_path/last_execution_time/pid 使用 .toString() 硬解析,缺任一字段即整条解析失败。
 func qlCronDict(t model.Task) map[string]interface{} {
+	status := 0
+	if t.Status == model.TaskStatusRunning {
+		status = 1
+	}
+	ts := strconv.FormatInt(unixT(t.CreatedAt), 10)
+	pid := ""
+	if t.PID != nil {
+		pid = strconv.Itoa(*t.PID)
+	}
+	lr := unixMS(t.LastRunAt)
 	return map[string]interface{}{
 		"id":                  t.ID,
+		"_id":                 strconv.FormatUint(uint64(t.ID), 10),
 		"name":                t.Name,
 		"command":             t.Command,
 		"schedule":            t.CronExpression,
 		"labels":              []string(t.Tags),
+		"saved":               true,
+		"status":              status,
 		"isDisabled":          !t.Enabled,
-		"last_execution_time": unixMS(t.LastRunAt),
-		"last_run_time":       unixMS(t.LastRunAt),
-		"last_result":         qlRunStatus(t.LastRunStatus),
+		"isSystem":            0,
+		"isPinned":            0,
+		"timestamp":           ts,
 		"created":             unixT(t.CreatedAt),
-		"updated":             unixT(t.UpdatedAt),
+		"createdAt":           t.CreatedAt.Format("2006-01-02 15:04:05"),
+		"updatedAt":           t.UpdatedAt.Format("2006-01-02 15:04:05"),
+		"last_execution_time": unixMS(t.LastRunAt),
+		"last_run_time":       lr,
+		"last_running_time":   lr,
+		"last_result":         qlRunStatus(t.LastRunStatus),
+		"log_path":            "",
+		"pid":                 pid,
 	}
 }
 
@@ -346,7 +369,8 @@ func qlEnvDict(e model.EnvVar) map[string]interface{} {
 		"remarks":   e.Remark,
 		"status":    status,
 		"created":   unixT(e.CreatedAt),
-		"updated":   unixT(e.UpdatedAt),
+		"createdAt": e.CreatedAt.Format("2006-01-02 15:04:05"),
+		"updatedAt": e.UpdatedAt.Format("2006-01-02 15:04:05"),
 		"timestamp": unixT(e.CreatedAt),
 	}
 }
@@ -374,7 +398,9 @@ func qlEnvDictFromMap(m map[string]interface{}) map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"id": id, "name": name, "value": value, "remarks": remark,
-		"status": status, "created": unixT(createdAt), "updated": unixT(createdAt),
+		"status": status, "created": unixT(createdAt),
+		"createdAt": createdAt.Format("2006-01-02 15:04:05"),
+		"updatedAt": createdAt.Format("2006-01-02 15:04:05"),
 		"timestamp": unixT(createdAt),
 	}
 }
@@ -522,9 +548,10 @@ func qlLogFile(c *gin.Context) {
 // ---- /open/system(系统信息) ----
 
 func qlSystemInfo(c *gin.Context) {
+	// version 上报青龙兼容版本号,App 据此选择接口能力(任务列表分页等)
 	qlSuccess(c, gin.H{
 		"isInitialized": !service.NewAuthService().NeedInit(),
-		"version":       Version,
+		"version":       "2.15.0",
 		"publishTime":   time.Now().UnixMilli(),
 		"branch":        "main",
 		"changeLog":     "task-panel 青龙兼容版",
@@ -566,7 +593,7 @@ func qlConfigDetail(c *gin.Context) {
 // ---- /open/script(脚本) ----
 
 func qlScriptList(c *gin.Context) {
-	qlSuccess(c, scriptFileList())
+	qlSuccess(c, qlScriptTree())
 }
 
 func scriptFileList() []map[string]string {
@@ -584,6 +611,31 @@ func scriptFileList() []map[string]string {
 		return nil
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i]["title"] < out[j]["title"] })
+	return out
+}
+
+// qlScriptTree 青龙脚本树(ScriptData):key/title/type/parent/children
+func qlScriptTree() []map[string]interface{} {
+	root := config.C.Data.ScriptsDir
+	var out []map[string]interface{}
+	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(root, p)
+		if rel == "" || strings.HasPrefix(filepath.Base(p), ".") {
+			return nil
+		}
+		out = append(out, map[string]interface{}{
+			"key": rel, "title": rel, "value": rel,
+			"type": "file", "parent": filepath.Dir(rel),
+			"children": []interface{}{},
+		})
+		return nil
+	})
+	sort.Slice(out, func(i, j int) bool {
+		return out[i]["title"].(string) < out[j]["title"].(string)
+	})
 	return out
 }
 
@@ -692,6 +744,7 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 		open.PUT("/envs/:id/move", qlScope("env:write"), qlWebEnvMove)
 
 		open.GET("/logs", qlScope("log:read"), qlWebLogList)
+		open.DELETE("/logs", qlScope("log:write"), func(c *gin.Context) { qlSuccess(c, gin.H{"message": "已删除"}) })
 		open.GET("/logs/:id", qlScope("log:read"), qlWebLogDetail)
 		open.GET("/logs/:id/file", qlScope("log:read"), qlWebLogFile)
 
@@ -905,37 +958,42 @@ func qlWebEnvToggle(enable bool) gin.HandlerFunc {
 
 // ---- /api/logs(执行日志) ----
 
+// qlWebLogList 青龙日志树:data 为数组,元素 {name,isDir,children}
 func qlWebLogList(c *gin.Context) {
-	logs, total := service.NewLogService().List(0, 1, 100)
-	out := make([]map[string]interface{}, len(logs))
-	for i, l := range logs {
-		out[i] = qlLogDict(l)
+	files := logFileList()
+	out := make([]map[string]interface{}, len(files))
+	for i, f := range files {
+		out[i] = map[string]interface{}{
+			"name": f["title"], "title": f["title"], "value": f["value"],
+			"isDir": false, "type": "file", "children": []interface{}{},
+		}
 	}
-	qlSuccess(c, gin.H{"data": out, "total": total})
+	qlSuccess(c, out)
 }
 
-func qlLogDict(l model.TaskLog) map[string]interface{} {
-	return map[string]interface{}{
-		"id":        l.ID,
-		"taskId":    l.TaskID,
-		"taskName":  l.TaskName,
-		"status":    l.Status,
-		"startedAt": unixT(l.StartedAt),
-		"endedAt":   unixMS(l.EndedAt),
-		"duration":  l.Duration,
-	}
-}
-
+// qlWebLogDetail 青龙日志详情:GET /api/logs/:name?path=(或数字 id)
+// App 期望 data 为字符串(日志内容)。
 func qlWebLogDetail(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	log, content, err := service.NewLogService().Get(uint(id))
-	if err != nil {
+	param := c.Param("id")
+	// 优先文件名
+	if id, err := strconv.ParseUint(param, 10, 32); err == nil && id > 0 {
+		_, content, gerr := service.NewLogService().Get(uint(id))
+		if gerr == nil {
+			qlSuccess(c, content)
+			return
+		}
+	}
+	full, err := pathutil.SafeJoin(config.C.Data.LogDir, filepath.Base(param), true)
+	if err != nil || full == "" {
 		qlFail(c, 404, 404, "日志不存在")
 		return
 	}
-	d := qlLogDict(*log)
-	d["content"] = content
-	qlSuccess(c, d)
+	b, rerr := os.ReadFile(full)
+	if rerr != nil {
+		qlFail(c, 404, 404, "日志不存在")
+		return
+	}
+	qlSuccess(c, string(b))
 }
 
 func qlWebLogFile(c *gin.Context) {
@@ -1236,20 +1294,25 @@ func qlWebLogRemove(c *gin.Context) {
 
 // qlWebUpdateCheck 版本检查:GET /api/system/update-check
 func qlWebUpdateCheck(c *gin.Context) {
-	qlSuccess(c, gin.H{"hasNewVersion": false, "version": Version})
+	qlSuccess(c, gin.H{"hasNewVersion": false, "lastVersion": "2.15.0", "lastLog": "task-panel 青龙兼容版"})
 }
 
 // qlWebLoginLog 登录记录:GET /api/user/login-log
+// LoginLogBean 需要 timestamp/address/ip/platform/status 字段。
 func qlWebLoginLog(c *gin.Context) {
-	logs, _ := service.NewAuditService().List("", "", 1, 20)
+	logs, _ := service.NewAuditService().List("", "", 1, 50)
 	out := make([]map[string]interface{}, 0, len(logs))
 	for _, l := range logs {
 		if l.Action != model.AuditActionLoginSuccess && l.Action != model.AuditActionLoginFailed {
 			continue
 		}
+		status := 1
+		if l.Action == model.AuditActionLoginSuccess {
+			status = 0
+		}
 		out = append(out, map[string]interface{}{
-			"id": l.ID, "type": l.Action, "address": l.IP,
-			"platform": "", "createdAt": unixT(l.CreatedAt),
+			"id": l.ID, "timestamp": unixT(l.CreatedAt), "address": l.IP,
+			"ip": l.IP, "platform": "", "status": status,
 		})
 	}
 	qlSuccess(c, out)
@@ -1317,6 +1380,7 @@ func RegisterQinglongWebCompat(engine *gin.Engine) {
 		api.PUT("/envs/:id/move", qlWebEnvMove)
 
 		api.GET("/logs", qlWebLogList)
+		api.DELETE("/logs", func(c *gin.Context) { qlSuccess(c, gin.H{"message": "已删除"}) })
 		api.GET("/logs/:id", qlWebLogDetail)
 		api.GET("/logs/:id/file", qlWebLogFile)
 
