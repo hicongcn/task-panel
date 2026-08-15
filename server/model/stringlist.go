@@ -11,11 +11,17 @@ import (
 type StringList []string
 
 // Value 实现 driver.Valuer(GORM 写库)。
+// 注意:必须返回 string 而非 []byte——纯 Go 驱动(modernc/glebarez)会把 []byte
+// 按 BLOB 绑定存储,导致 TEXT 列的存储类别变成 blob,LIKE 等文本匹配全部失效。
 func (s StringList) Value() (driver.Value, error) {
 	if s == nil {
 		return "[]", nil
 	}
-	return json.Marshal(s)
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	return string(b), nil
 }
 
 // Scan 实现 sql.Scanner(GORM 读库)。
