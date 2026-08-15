@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"taskpanel/database"
 	"taskpanel/router"
 	"taskpanel/service"
+	"taskpanel/webembed"
 
 	"github.com/gin-gonic/gin"
 )
@@ -144,21 +146,35 @@ func resolveConfigPath() string {
 }
 
 // setupStaticFrontend 让 Go 二进制直接托管前端静态资源(无需 nginx)。
+// 优先级:显式配置/自动探测的外部目录 > 内嵌前端(webembed,单文件分发)。
 func setupStaticFrontend(engine *gin.Engine, webDir string) {
 	if strings.TrimSpace(webDir) == "" {
 		webDir = autoDetectWebDir()
-		if webDir == "" {
-			return
-		}
+	}
+	if abs := resolveWebDir(webDir); abs != "" {
+		mountFrontend(engine, abs)
+		return
+	}
+	mountEmbeddedFrontend(engine)
+}
+
+// resolveWebDir 解析并校验外部前端目录(index.html 必须存在)。
+func resolveWebDir(webDir string) string {
+	if strings.TrimSpace(webDir) == "" {
+		return ""
 	}
 	abs, err := filepath.Abs(webDir)
 	if err != nil {
-		return
+		return ""
 	}
+	if _, err := os.Stat(filepath.Join(abs, "index.html")); err != nil {
+		return ""
+	}
+	return abs
+}
+
+func mountFrontend(engine *gin.Engine, abs string) {
 	index := filepath.Join(abs, "index.html")
-	if _, err := os.Stat(index); err != nil {
-		return
-	}
 	engine.StaticFile("/", index)
 	for _, sub := range []string{"assets"} {
 		d := filepath.Join(abs, sub)
@@ -174,6 +190,35 @@ func setupStaticFrontend(engine *gin.Engine, webDir string) {
 		c.File(index)
 	})
 	log.Printf("前端静态目录已挂载: %s", abs)
+}
+
+// mountEmbeddedFrontend 挂载内嵌的 web/dist(单文件发布,无需外部目录)。
+// 注意:标准库 FileServer 会把 /index.html 请求 301 到 ./,
+// 因此根路径用 FileServer 直接服务(自动 index.html),SPA 深路径由 NoRoute 手动回退。
+func mountEmbeddedFrontend(engine *gin.Engine) {
+	sub, err := fs.Sub(webembed.Dist, "dist")
+	if err != nil {
+		log.Printf("warn: 内嵌前端不可用: %v", err)
+		return
+	}
+	indexBytes, err := fs.ReadFile(sub, "index.html")
+	if err != nil {
+		log.Printf("warn: 内嵌前端缺少 index.html(占位模式,忽略)")
+		return
+	}
+	fsys := http.FS(sub)
+	engine.GET("/", gin.WrapH(http.FileServer(fsys)))
+	if _, err := fs.Stat(sub, "assets"); err == nil {
+		engine.StaticFS("/assets", fsys)
+	}
+	engine.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(404, gin.H{"code": 404, "message": "route not found"})
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexBytes)
+	})
+	log.Printf("前端静态资源已内嵌挂载(webembed)")
 }
 
 func autoDetectWebDir() string {

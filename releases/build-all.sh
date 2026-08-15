@@ -1,9 +1,24 @@
 #!/bin/bash
+# 构建全平台发布二进制(内嵌前端,单文件分发)。
+# 用法:bash releases/build-all.sh [--rebuild-web]  (加参数则先重建前端)
 set -e
 export GOCACHE=/Users/licong/Documents/Deepseek/task-panel/.gocache
-cd /Users/licong/Documents/Deepseek/task-panel/server
-OUT=/Users/licong/Documents/Deepseek/task-panel/releases
+cd /Users/licong/Documents/Deepseek/task-panel
+OUT=$PWD/releases
 
+# 1) 前端产物缺失或要求重建时,先构建前端
+if [ ! -f web/dist/index.html ] || [ "$1" = "--rebuild-web" ]; then
+  echo "== building frontend =="
+  (cd web && npm run build)
+fi
+
+# 2) 同步前端产物到 embed 目录(go:embed 无法引用模块外路径)
+echo "== syncing web/dist -> server/webembed/dist =="
+rm -rf server/webembed/dist
+mkdir -p server/webembed/dist
+cp -r web/dist/* server/webembed/dist/
+
+cd server
 build_one() {
   local os=$1 arch=$2
   local name="taskpanel-server-$os-$arch"

@@ -1,0 +1,2 @@
+此目录为占位:releases/build-all.sh 会把仓库根 web/dist 构建产物同步到此后再编译,
+使发布二进制内嵌前端(单文件分发)。开发环境无 index.html 时忽略此目录。
