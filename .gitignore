@@ -16,3 +16,6 @@ web/dist/
 
 # 本地数据备份(不进 git)
 server/data_backup_*/
+
+# 多平台发布二进制(可用 releases/build-all.sh 重新生成)
+/releases/taskpanel-server-*
