@@ -141,8 +141,8 @@ func resolveConfigPath() string {
 	if _, err := os.Stat("config.yaml"); err == nil {
 		return "config.yaml"
 	}
-	// 兜底:用 exe 目录下的 config.yaml(即使不存在,Load 会报错给出明确信息)
-	return "config.yaml"
+	// 无任何配置文件:返回空,由 config.Load 使用内置默认配置(单文件发布模式)
+	return ""
 }
 
 // setupStaticFrontend 让 Go 二进制直接托管前端静态资源(无需 nginx)。

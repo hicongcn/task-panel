@@ -70,15 +70,20 @@ type CORSConfig struct {
 var C *Config
 
 // Load 从 path 加载配置。相对路径以配置文件所在目录为基准解析。
+// path 为空或文件不存在时使用内置默认配置(单文件发布模式,数据落在运行目录 ./data)。
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
 	cfg := &Config{}
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, err
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Printf("config: %s 不存在,使用内置默认配置", path)
+			} else {
+				return nil, err
+			}
+		} else if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, err
+		}
 	}
 
 	// 环境变量覆盖
@@ -123,6 +128,12 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.JWT.TokenExpireH == 0 {
 		cfg.JWT.TokenExpireH = 72 // 3 天
+	}
+	if cfg.Data.Dir == "" {
+		cfg.Data.Dir = "./data"
+	}
+	if cfg.Database.Path == "" {
+		cfg.Database.Path = filepath.Join(cfg.Data.Dir, "taskpanel.db")
 	}
 
 	// 路径解析锚点:config.yaml 所在目录,避免 cwd 漂移导致数据写到别处。
