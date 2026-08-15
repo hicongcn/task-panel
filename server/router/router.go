@@ -31,7 +31,6 @@ func Setup(engine *gin.Engine) {
 	handler.NewNotifyHandler().RegisterRoutes(v1)
 	handler.NewBackupHandler().RegisterRoutes(v1)
 	handler.NewDepHandler().RegisterRoutes(v1)
-	handler.NewOpenAPIHandler().RegisterRoutes(v1)
 	handler.NewMigrateHandler().RegisterRoutes(v1)
 
 	// 版本(公开)

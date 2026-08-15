@@ -1032,16 +1032,16 @@ func TestSystemStats(t *testing.T) {
 	}
 }
 
-// ---------- Open API ----------
+// ---------- Open API(青龙规范) ----------
 
 func TestOpenAPI(t *testing.T) {
 	token := getToken(t)
 
-	// 创建应用
-	w := doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
-		"name": "测试应用", "scopes": []string{"tasks:read", "tasks:run"},
+	// 创建应用(青龙 POST /open/app)
+	w := doRequest(t, "POST", "/open/app", token, map[string]interface{}{
+		"name": "测试应用", "scopes": []string{"crontab:read", "crontab:write"},
 	})
-	assertCode(t, w, 201, 0, "create app")
+	assertCode(t, w, 200, 200, "create app")
 	var created struct {
 		Data struct {
 			ID           uint   `json:"id"`
@@ -1049,38 +1049,38 @@ func TestOpenAPI(t *testing.T) {
 			ClientSecret string `json:"client_secret"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal(decodeResp(t, w).Data, &created)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &created.Data)
 	if created.Data.ClientID == "" || created.Data.ClientSecret == "" {
 		t.Fatal("client_id/secret 不应为空")
 	}
 
 	// 保留字拒绝
-	w = doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
+	w = doRequest(t, "POST", "/open/app", token, map[string]interface{}{
 		"name": "system", "scopes": []string{},
 	})
 	assertCode(t, w, 400, 400, "保留字拒绝")
 
 	// 非法 scope 拒绝
-	w = doRequest(t, "POST", "/api/v1/open/apps", token, map[string]interface{}{
+	w = doRequest(t, "POST", "/open/app", token, map[string]interface{}{
 		"name": "x", "scopes": []string{"bad:scope"},
 	})
 	assertCode(t, w, 400, 400, "非法 scope 拒绝")
 
-	// 列表:应包含解析后的 scopes 数组(回归:曾因 json:"-" 导致前端权限范围为空)
-	w = doRequest(t, "GET", "/api/v1/open/apps", token, nil)
-	assertCode(t, w, 200, 0, "list apps")
+	// 列表:应包含解析后的 scopes 数组
+	w = doRequest(t, "GET", "/open/app", token, nil)
+	assertCode(t, w, 200, 200, "list apps")
 	var appList struct {
 		Data []struct {
 			ID     uint     `json:"id"`
 			Scopes []string `json:"scopes"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal(decodeResp(t, w).Data, &appList)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &appList.Data)
 	foundApp := false
 	for _, a := range appList.Data {
 		if a.ID == created.Data.ID {
 			foundApp = true
-			if len(a.Scopes) != 2 || a.Scopes[0] != "tasks:read" {
+			if len(a.Scopes) != 2 || a.Scopes[0] != "crontab:read" {
 				t.Fatalf("列表应含 scopes 数组: %+v", a.Scopes)
 			}
 		}
@@ -1089,60 +1089,58 @@ func TestOpenAPI(t *testing.T) {
 		t.Fatal("列表未包含刚创建的应用")
 	}
 
-	// 错误密钥换 token → 401
-	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
-		"client_id": created.Data.ClientID, "client_secret": "wrong-secret",
-	})
+	// 错误密钥换 token → 401(青龙规范 GET+query)
+	w = doRequest(t, "GET", fmt.Sprintf("/open/auth/token?client_id=%s&client_secret=%s",
+		created.Data.ClientID, "wrong-secret"), "", nil)
 	assertCode(t, w, 401, 401, "错误 secret 拒绝")
 
-	// 正确换 token
-	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
-		"client_id": created.Data.ClientID, "client_secret": created.Data.ClientSecret,
-	})
-	assertCode(t, w, 200, 0, "换取 token")
+	// 正确换 token(GET + query,青龙规范)
+	w = doRequest(t, "GET", fmt.Sprintf("/open/auth/token?client_id=%s&client_secret=%s",
+		created.Data.ClientID, created.Data.ClientSecret), "", nil)
+	assertCode(t, w, 200, 200, "换取 token")
 	var tok struct {
 		Data struct {
 			Token string `json:"token"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal(decodeResp(t, w).Data, &tok)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &tok.Data)
 	if tok.Data.Token == "" {
 		t.Fatal("token 为空")
 	}
-	// 带 scope 的接口放行(tasks:read);doRequest 会自动加 "Bearer " 前缀
+	// 带 scope 的接口放行(crontab:read)
 	openAuth := tok.Data.Token
-	w = doRequest(t, "GET", "/api/v1/open/tasks", openAuth, nil)
-	assertCode(t, w, 200, 0, "open tasks 放行")
+	w = doRequest(t, "GET", "/open/crontab", openAuth, nil)
+	assertCode(t, w, 200, 200, "open crontab 放行")
 
-	// 无对应 scope 的接口拒绝(logs:read 未授予)→ 403
-	w = doRequest(t, "GET", "/api/v1/open/logs", openAuth, nil)
+	// 无对应 scope 的接口拒绝(log:read 未授予)→ 403
+	w = doRequest(t, "GET", "/open/log", openAuth, nil)
 	if w.Code != 403 {
 		t.Fatalf("未授权 scope 应 403, got %d (body=%s)", w.Code, w.Body.String())
 	}
 
 	// 无 token → 401
-	w = doRequest(t, "GET", "/api/v1/open/tasks", "", nil)
+	w = doRequest(t, "GET", "/open/crontab", "", nil)
 	assertCode(t, w, 401, 401, "无 token 拒绝")
 
-	// 重置密钥后旧 secret 失效
-	w = doRequest(t, "PUT", fmt.Sprintf("/api/v1/open/apps/%d/reset-secret", created.Data.ID), token, nil)
-	assertCode(t, w, 200, 0, "reset secret")
+	// 重置密钥后旧 secret 失效(青龙 PUT /open/app/:id/reset-secret)
+	w = doRequest(t, "PUT", fmt.Sprintf("/open/app/%d/reset-secret", created.Data.ID), token, nil)
+	assertCode(t, w, 200, 200, "reset secret")
 	var reset struct {
 		Data struct {
 			ClientSecret string `json:"client_secret"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal(decodeResp(t, w).Data, &reset)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &reset.Data)
 	if reset.Data.ClientSecret == "" || reset.Data.ClientSecret == created.Data.ClientSecret {
 		t.Fatal("新 secret 应不同")
 	}
-	w = doRequest(t, "POST", "/api/v1/open/auth/token", "", map[string]string{
-		"client_id": created.Data.ClientID, "client_secret": created.Data.ClientSecret,
-	})
+	w = doRequest(t, "GET", fmt.Sprintf("/open/auth/token?client_id=%s&client_secret=%s",
+		created.Data.ClientID, created.Data.ClientSecret), "", nil)
 	assertCode(t, w, 401, 401, "旧 secret 失效")
 
-	// 清理
-	_ = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/open/apps/%d", created.Data.ID), token, nil)
+	// 清理:青龙批量删除 body 为 ID 数组
+	w = doRequest(t, "DELETE", "/open/app", token, []uint{created.Data.ID})
+	assertCode(t, w, 200, 200, "delete app")
 }
 
 // ---------- 2FA / TOTP ----------

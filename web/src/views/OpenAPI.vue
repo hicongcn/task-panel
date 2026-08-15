@@ -2,9 +2,10 @@
   <div>
     <el-alert type="info" :closable="false" class="intro">
       <template #title>
-        <b>Open API(参考青龙结构)</b> — 在「应用」创建后得到 <code>client_id</code> + <code>client_secret</code>,然后:
-        <code>POST /api/v1/open/auth/token</code> 换取令牌,后续请求带
-        <code>Authorization: Bearer &lt;token&gt;</code> 调用开放接口(<code>/open/tasks</code> 等),按 scopes 控制权限。
+        <b>Open API(青龙规范)</b> — 在「应用」创建后得到 <code>client_id</code> + <code>client_secret</code>,然后:
+        <code>GET /open/auth/token?client_id=..&amp;client_secret=..</code> 换取令牌,后续请求带
+        <code>Authorization: Bearer &lt;token&gt;</code> 调用开放接口(<code>/open/crontab</code>、<code>/open/env</code> 等),按 scopes 控制权限。
+        与青龙面板接口完全兼容,青龙生态客户端可直接对接。
       </template>
     </el-alert>
 
