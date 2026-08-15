@@ -470,9 +470,58 @@ func TestEnvCRUD(t *testing.T) {
 	})
 	assertCode(t, w, 200, 0, "update env")
 
+	// 批量启停:再建两个变量
+	id2 := mustCreateEnv(t, token, "BATCH_A", "1")
+	id3 := mustCreateEnv(t, token, "BATCH_B", "1")
+	w = doRequest(t, "POST", "/api/v1/envs/batch/disable", token, map[string]interface{}{"ids": []uint{id2, id3}})
+	assertCode(t, w, 200, 0, "batch disable")
+	w = doRequest(t, "GET", "/api/v1/envs", token, nil)
+	var envList2 struct {
+		Data []struct {
+			ID      uint `json:"id"`
+			Enabled bool `json:"enabled"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &envList2)
+	for _, e := range envList2.Data {
+		if (e.ID == id2 || e.ID == id3) && e.Enabled {
+			t.Fatal("批量禁用未生效")
+		}
+	}
+	w = doRequest(t, "POST", "/api/v1/envs/batch/enable", token, map[string]interface{}{"ids": []uint{id2, id3}})
+	assertCode(t, w, 200, 0, "batch enable")
+	w = doRequest(t, "GET", "/api/v1/envs", token, nil)
+	_ = json.Unmarshal(decodeResp(t, w).Data, &envList2)
+	for _, e := range envList2.Data {
+		if (e.ID == id2 || e.ID == id3) && !e.Enabled {
+			t.Fatal("批量启用未生效")
+		}
+	}
+	// 空 ids 拒绝
+	w = doRequest(t, "POST", "/api/v1/envs/batch/enable", token, map[string]interface{}{"ids": []uint{}})
+	assertCode(t, w, 400, 400, "empty batch ids rejected")
+	// 批量删除清理
+	w = doRequest(t, "DELETE", "/api/v1/envs/batch", token, map[string]interface{}{"ids": []uint{id2, id3}})
+	assertCode(t, w, 200, 0, "batch delete")
+
 	// 删除
 	w = doRequest(t, "DELETE", fmt.Sprintf("/api/v1/envs/%d", created.ID), token, nil)
 	assertCode(t, w, 200, 0, "delete env")
+}
+
+func mustCreateEnv(t *testing.T, token, name, value string) uint {
+	t.Helper()
+	w := doRequest(t, "POST", "/api/v1/envs", token, map[string]interface{}{
+		"name": name, "value": value, "group": "批量", "enabled": true,
+	})
+	assertCode(t, w, 201, 0, "create env "+name)
+	var c struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(decodeResp(t, w).Data, &c)
+	return c.Data.ID
 }
 
 // ---------- 脚本管理 ----------

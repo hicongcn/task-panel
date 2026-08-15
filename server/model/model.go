@@ -139,6 +139,8 @@ const (
 	AuditActionEnvUpdate     = "env_update"
 	AuditActionEnvDelete     = "env_delete"
 	AuditActionEnvBatchDel   = "env_batch_delete"
+	AuditActionEnvEnable     = "env_enable"
+	AuditActionEnvDisable    = "env_disable"
 
 	AuditActionNotifyCreate = "notify_create"
 	AuditActionNotifyUpdate = "notify_update"

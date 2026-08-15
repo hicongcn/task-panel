@@ -4,12 +4,26 @@
       <el-input v-model="keyword" placeholder="搜索名称/备注" clearable style="width:220px" @keyup.enter="load" @clear="load" />
       <el-button @click="load">刷新</el-button>
       <el-button type="primary" @click="openCreate">新建变量</el-button>
+      <el-dropdown v-if="selected.length" style="margin-left:4px">
+        <el-button>
+          批量操作({{ selected.length }})<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="batch('enable')">批量启用</el-dropdown-item>
+            <el-dropdown-item @click="batch('disable')">批量禁用</el-dropdown-item>
+            <el-dropdown-item divided @click="batch('delete')">批量删除</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <span class="hint">拖动左侧把手可调整顺序</span>
     </div>
-    <el-table ref="tableRef" :data="envs" v-loading="loading" border stripe row-key="id">
+    <el-table ref="tableRef" :data="envs" v-loading="loading" border stripe row-key="id" @selection-change="onSelection">
+      <el-table-column type="selection" width="40" />
       <el-table-column align="center">
         <template #default><span class="drag-handle">⠿</span></template>
       </el-table-column>
+      <el-table-column type="index" label="#" width="52" align="center" />
       <el-table-column label="名称" width="110">
         <template #default="{ row }">
           <div class="copy-wrap">
@@ -62,14 +76,37 @@
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Sortable from 'sortablejs'
-import { CopyDocument } from '@element-plus/icons-vue'
+import { CopyDocument, ArrowDown } from '@element-plus/icons-vue'
 import { envApi, type EnvVar } from '@/api/env'
 
 const envs = ref<EnvVar[]>([])
 const loading = ref(false)
 const keyword = ref('')
+const selected = ref<EnvVar[]>([])
 const tableRef = ref()
 let sortable: Sortable | null = null
+function onSelection(rows: EnvVar[]) {
+  selected.value = rows
+}
+
+async function batch(action: 'enable' | 'disable' | 'delete') {
+  const ids = selected.value.map((e) => e.id)
+  if (!ids.length) return
+  if (action === 'delete') {
+    try {
+      await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 个变量?`, '提示', { type: 'warning' })
+    } catch { return }
+  }
+  try {
+    if (action === 'delete') await envApi.batchDelete(ids)
+    else await envApi.batch(action, ids)
+    ElMessage.success(action === 'delete' ? '已删除' : action === 'enable' ? '已启用' : '已禁用')
+    load()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '操作失败')
+  }
+}
+
 
 const formDialog = reactive({
   visible: false, loading: false, id: 0,

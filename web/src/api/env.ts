@@ -21,6 +21,8 @@ export const envApi = {
   update: (id: number, data: Partial<EnvVar> & { value?: string }) =>
     request.put(`/envs/${id}`, data),
   remove: (id: number) => request.delete(`/envs/${id}`),
+  batch: (action: 'enable' | 'disable', ids: number[]) =>
+    request.post(`/envs/batch/${action}`, { ids }),
   batchDelete: (ids: number[]) => request.delete('/envs/batch', { data: { ids } }),
   reorder: (ids: number[]) => request.put('/envs/reorder', { ids }),
 }

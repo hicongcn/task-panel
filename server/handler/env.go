@@ -104,6 +104,27 @@ func (h *EnvHandler) BatchDelete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "已删除", "count": n})
 }
 
+// BatchEnable POST /envs/batch/enable
+func (h *EnvHandler) BatchEnable(c *gin.Context) { h.batchToggle(c, true) }
+
+// BatchDisable POST /envs/batch/disable
+func (h *EnvHandler) BatchDisable(c *gin.Context) { h.batchToggle(c, false) }
+
+func (h *EnvHandler) batchToggle(c *gin.Context, enable bool) {
+	ids, ok := batchIDs(c)
+	if !ok {
+		response.BadRequest(c, "请求参数错误")
+		return
+	}
+	n := h.svc.BatchSetEnabled(ids, enable)
+	action := model.AuditActionEnvDisable
+	if enable {
+		action = model.AuditActionEnvEnable
+	}
+	recordAudit(c, action, fmt.Sprintf("envs:%v", ids), "")
+	response.Success(c, gin.H{"message": "批量操作完成", "count": n})
+}
+
 // Reorder PUT /envs/reorder {ids: [...]} 拖拽排序后保存顺序。
 func (h *EnvHandler) Reorder(c *gin.Context) {
 	var req struct {
@@ -129,6 +150,8 @@ func (h *EnvHandler) RegisterRoutes(r *gin.RouterGroup) {
 		envs.PUT("/:id", h.Update)
 		envs.DELETE("/:id", h.Delete)
 		envs.DELETE("/batch", h.BatchDelete)
+		envs.POST("/batch/enable", h.BatchEnable)
+		envs.POST("/batch/disable", h.BatchDisable)
 		envs.PUT("/reorder", h.Reorder)
 	}
 }

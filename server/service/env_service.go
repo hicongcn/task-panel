@@ -133,6 +133,12 @@ func (s *EnvService) BatchDelete(ids []uint) (int64, error) {
 	return r.RowsAffected, r.Error
 }
 
+// BatchSetEnabled 批量启用/禁用。
+func (s *EnvService) BatchSetEnabled(ids []uint, enabled bool) int64 {
+	r := database.DB.Model(&model.EnvVar{}).Where("id IN ?", ids).Update("enabled", enabled)
+	return r.RowsAffected
+}
+
 // Reorder 按传入 ID 顺序重排(sort_order 递减,列表按 DESC 展示即传入顺序)。
 func (s *EnvService) Reorder(ids []uint) error {
 	n := len(ids)
