@@ -48,8 +48,12 @@ func (s *DepService) ListPython() ([]PkgInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("执行 pip3 list 失败: %v", err)
 	}
+	raw, err := extractJSONValue(out)
+	if err != nil {
+		return nil, fmt.Errorf("解析 pip3 list 输出失败: %v", err)
+	}
 	var pkgs []PkgInfo
-	if err := json.Unmarshal([]byte(out), &pkgs); err != nil {
+	if err := json.Unmarshal(raw, &pkgs); err != nil {
 		return nil, fmt.Errorf("解析 pip3 list 输出失败: %v", err)
 	}
 	return pkgs, nil
@@ -94,12 +98,16 @@ func (s *DepService) ListNode() ([]PkgInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("执行 npm list 失败: %v", err)
 	}
+	raw, err := extractJSONValue(out)
+	if err != nil {
+		return nil, fmt.Errorf("解析 npm list 输出失败: %v", err)
+	}
 	var res struct {
 		Dependencies map[string]struct {
 			Version string `json:"version"`
 		} `json:"dependencies"`
 	}
-	if err := json.Unmarshal([]byte(out), &res); err != nil {
+	if err := json.Unmarshal(raw, &res); err != nil {
 		return nil, fmt.Errorf("解析 npm list 输出失败: %v", err)
 	}
 	var pkgs []PkgInfo
@@ -155,6 +163,35 @@ func validatePkg(pkg string) error {
 		return fmt.Errorf("包名包含非法字符")
 	}
 	return nil
+}
+
+// extractJSONValue 从命令合并输出中提取首个完整 JSON 值(对象或数组),
+// 容忍前置警告信息——macOS/Linux 上 pip 常把 cache 等警告写入 stderr,
+// 与 stdout 的 JSON 合并后直接解析会失败。
+func extractJSONValue(out string) ([]byte, error) {
+	start := -1
+	for i := 0; i < len(out); i++ {
+		if out[i] == '{' || out[i] == '[' {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return nil, fmt.Errorf("输出中未找到 JSON: %q", truncateStr(out, 200))
+	}
+	dec := json.NewDecoder(strings.NewReader(out[start:]))
+	var v json.RawMessage
+	if err := dec.Decode(&v); err != nil {
+		return nil, fmt.Errorf("JSON 解码失败: %v", err)
+	}
+	return v, nil
+}
+
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 // runCmd 参数化执行命令并合并输出,超时后返回错误。
