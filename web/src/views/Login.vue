@@ -37,7 +37,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Monitor } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { systemApi } from '@/api/system'
 
