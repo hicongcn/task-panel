@@ -14,13 +14,9 @@
         <el-menu-item index="/scripts"><el-icon><Document /></el-icon><span>脚本管理</span></el-menu-item>
         <el-menu-item index="/envs"><el-icon><Key /></el-icon><span>环境变量</span></el-menu-item>
         <el-menu-item index="/logs"><el-icon><List /></el-icon><span>执行日志</span></el-menu-item>
-        <el-menu-item index="/notify"><el-icon><Bell /></el-icon><span>通知渠道</span></el-menu-item>
-        <el-menu-item index="/backups"><el-icon><FolderOpened /></el-icon><span>备份恢复</span></el-menu-item>
         <el-menu-item index="/deps"><el-icon><Box /></el-icon><span>依赖管理</span></el-menu-item>
         <el-menu-item index="/openapi"><el-icon><Connection /></el-icon><span>开放接口</span></el-menu-item>
-        <el-menu-item index="/audit"><el-icon><Tickets /></el-icon><span>审计日志</span></el-menu-item>
-        <el-menu-item index="/settings"><el-icon><Lock /></el-icon><span>安全设置</span></el-menu-item>
-        <el-menu-item index="/migrate"><el-icon><Switch /></el-icon><span>数据迁移</span></el-menu-item>
+        <el-menu-item index="/system"><el-icon><Setting /></el-icon><span>系统管理</span></el-menu-item>
       </el-menu>
       <div class="aside-foot">Task Panel · 自研任务面板</div>
     </el-aside>
@@ -53,7 +49,7 @@ import { reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { systemApi } from '@/api/system'
-import { Monitor, Timer, Document, Key, List, Tickets, Bell, FolderOpened, Box, Connection, Lock, Switch, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import { Monitor, Timer, Document, Key, List, Box, Connection, Setting, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
