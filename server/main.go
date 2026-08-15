@@ -193,8 +193,11 @@ func mountFrontend(engine *gin.Engine, abs string) {
 }
 
 // mountEmbeddedFrontend 挂载内嵌的 web/dist(单文件发布,无需外部目录)。
-// 注意:标准库 FileServer 会把 /index.html 请求 301 到 ./,
-// 因此根路径用 FileServer 直接服务(自动 index.html),SPA 深路径由 NoRoute 手动回退。
+// 注意:
+//  1. 标准库 FileServer 会把 /index.html 请求 301 到 ./,
+//     因此根路径用 FileServer 直接服务(自动 index.html),SPA 深路径由 NoRoute 手动回退;
+//  2. gin 的 StaticFS 预检用 fs.Open(*filepath),而 *filepath 带前导斜杠,
+//     embed.FS 拒绝以 / 开头的路径,必须用 trimFS 去掉前导斜杠(否则所有资源 404→回退 index.html 白屏)。
 func mountEmbeddedFrontend(engine *gin.Engine) {
 	sub, err := fs.Sub(webembed.Dist, "dist")
 	if err != nil {
@@ -208,8 +211,10 @@ func mountEmbeddedFrontend(engine *gin.Engine) {
 	}
 	fsys := http.FS(sub)
 	engine.GET("/", gin.WrapH(http.FileServer(fsys)))
-	if _, err := fs.Stat(sub, "assets"); err == nil {
-		engine.StaticFS("/assets", fsys)
+	// assets 作为 StaticFS 的根:gin 预检/FileServer 打开的是相对 assets 的路径
+	// (如 index-xxx.js),若直接传 dist 根,会因路径层级不匹配全部 404→回退 index.html 白屏。
+	if assetsSub, err := fs.Sub(sub, "assets"); err == nil {
+		engine.StaticFS("/assets", trimFS{http.FS(assetsSub)})
 	}
 	engine.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
@@ -219,6 +224,16 @@ func mountEmbeddedFrontend(engine *gin.Engine) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexBytes)
 	})
 	log.Printf("前端静态资源已内嵌挂载(webembed)")
+}
+
+// trimFS 兼容 gin StaticFS:其预检传入的 *filepath 参数以 / 开头,
+// embed.FS 不接收前导斜杠路径,这里统一去掉。
+type trimFS struct {
+	inner http.FileSystem
+}
+
+func (t trimFS) Open(name string) (http.File, error) {
+	return t.inner.Open(strings.TrimPrefix(name, "/"))
 }
 
 func autoDetectWebDir() string {
