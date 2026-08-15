@@ -664,3 +664,410 @@ func RegisterQinglongCompat(engine *gin.Engine) {
 		open.GET("/subscription", qlScope("subscription:read"), qlSubList)
 	}
 }
+// ================= 青龙前端 API 兼容(/api/*,登录态 Bearer) =================
+
+// qlWebLogin 青龙登录:POST /api/user/login {username,password}
+func qlWebLogin(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		qlFail(c, 400, 400, "请求参数错误")
+		return
+	}
+	res, err := service.NewAuthService().Login(req.Username, req.Password, c.ClientIP(), "")
+	if err != nil {
+		qlFail(c, 401, 401, "用户名或密码错误")
+		return
+	}
+	qlSuccess(c, gin.H{"token": res.Token})
+}
+
+// qlWebUser 青龙用户信息:GET /api/user
+func qlWebUser(c *gin.Context) {
+	claims, _ := c.Get("claims")
+	if cl, ok := claims.(*middleware.Claims); ok {
+		qlSuccess(c, gin.H{"id": 1, "username": cl.Username})
+		return
+	}
+	qlFail(c, 401, 401, "未登录")
+}
+
+// ---- /api/crons(任务,青龙前端命名) ----
+
+func qlWebCronList(c *gin.Context) {
+	search := c.Query("searchValue")
+	tasks := service.NewTaskService().List(search, "", "")
+	out := make([]map[string]interface{}, len(tasks))
+	for i, t := range tasks {
+		out[i] = qlCronDict(t)
+	}
+	qlSuccess(c, out)
+}
+
+func qlWebCronCreate(c *gin.Context) {
+	var req struct {
+		Name     string   `json:"name"`
+		Command  string   `json:"command"`
+		Schedule string   `json:"schedule"`
+		Labels   []string `json:"labels"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" || req.Command == "" || req.Schedule == "" {
+		qlFail(c, 400, 400, "name/command/schedule 必填")
+		return
+	}
+	task, err := service.NewTaskService().Create(service.CreateInput{
+		Name: req.Name, Command: req.Command, CronExpression: req.Schedule, Enabled: false, Tags: req.Labels,
+	})
+	if err != nil {
+		qlFail(c, 400, 400, err.Error())
+		return
+	}
+	recordAudit(c, model.AuditActionTaskCreate, fmt.Sprintf("task:%d", task.ID), task.Name)
+	qlSuccess(c, qlCronDict(*task))
+}
+
+func qlWebCronUpdate(c *gin.Context) {
+	qlCronUpdate(c)
+}
+
+func qlWebCronBatchDelete(c *gin.Context) {
+	qlCronBatchDelete(c)
+}
+
+func qlWebCronRun(c *gin.Context)     { qlCronRun(c) }
+func qlWebCronStop(c *gin.Context)    { qlCronStop(c) }
+func qlWebCronEnable(c *gin.Context)  { qlCronEnable(c) }
+func qlWebCronDisable(c *gin.Context) { qlCronDisable(c) }
+
+// ---- /api/envs(环境变量,青龙前端命名) ----
+
+func qlWebEnvList(c *gin.Context)   { qlEnvList(c) }
+func qlWebEnvCreate(c *gin.Context) { qlEnvCreate(c) }
+func qlWebEnvUpdate(c *gin.Context) { qlEnvUpdate(c) }
+func qlWebEnvBatchDelete(c *gin.Context) {
+	var req struct {
+		Ids []uint `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+		qlFail(c, 400, 400, "缺少 ids 数组")
+		return
+	}
+	n, err := service.NewEnvService().BatchDelete(req.Ids)
+	if err != nil {
+		qlFail(c, 500, 500, err.Error())
+		return
+	}
+	recordAudit(c, model.AuditActionEnvBatchDel, fmt.Sprintf("envs:%v", req.Ids), "")
+	qlSuccess(c, gin.H{"message": "已删除", "deleted": n})
+}
+
+// qlWebEnvToggle 青龙前端 PUT /api/envs/enable|disable {ids:[]}
+func qlWebEnvToggle(enable bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Ids []uint `json:"ids"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+			qlFail(c, 400, 400, "缺少 ids 数组")
+			return
+		}
+		n := service.NewEnvService().BatchSetEnabled(req.Ids, enable)
+		action := model.AuditActionEnvDisable
+		if enable {
+			action = model.AuditActionEnvEnable
+		}
+		recordAudit(c, action, fmt.Sprintf("envs:%v", req.Ids), "")
+		qlSuccess(c, gin.H{"message": "操作完成", "count": n})
+	}
+}
+
+// ---- /api/logs(执行日志) ----
+
+func qlWebLogList(c *gin.Context) {
+	logs, total := service.NewLogService().List(0, 1, 100)
+	out := make([]map[string]interface{}, len(logs))
+	for i, l := range logs {
+		out[i] = qlLogDict(l)
+	}
+	qlSuccess(c, gin.H{"data": out, "total": total})
+}
+
+func qlLogDict(l model.TaskLog) map[string]interface{} {
+	return map[string]interface{}{
+		"id":        l.ID,
+		"taskId":    l.TaskID,
+		"taskName":  l.TaskName,
+		"status":    l.Status,
+		"startedAt": unixT(l.StartedAt),
+		"endedAt":   unixMS(l.EndedAt),
+		"duration":  l.Duration,
+	}
+}
+
+func qlWebLogDetail(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	log, content, err := service.NewLogService().Get(uint(id))
+	if err != nil {
+		qlFail(c, 404, 404, "日志不存在")
+		return
+	}
+	d := qlLogDict(*log)
+	d["content"] = content
+	qlSuccess(c, d)
+}
+
+func qlWebLogFile(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	path, _, err := service.NewLogService().RawFilePath(uint(id))
+	if err != nil || path == "" {
+		qlFail(c, 404, 404, "日志文件不存在")
+		return
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		qlFail(c, 404, 404, "日志文件不存在")
+		return
+	}
+	c.Data(200, "text/plain; charset=utf-8", b)
+}
+// ---- /api/system /api/configs /api/scripts /api/dependencies /api/apps /api/notifies ----
+
+func qlWebSystem(c *gin.Context) {
+	qlSystemInfo(c)
+}
+
+func qlWebSystemConfig(c *gin.Context) {
+	qlSystemConfig(c)
+}
+
+func qlWebConfigList(c *gin.Context) {
+	qlConfigList(c)
+}
+
+func qlWebConfigSample(c *gin.Context) {
+	qlConfigSample(c)
+}
+
+func qlWebConfigSave(c *gin.Context) {
+	var req struct {
+		Name    string `json:"name"`
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
+		qlFail(c, 400, 400, "name 必填")
+		return
+	}
+	_ = req.Content
+	qlSuccess(c, gin.H{"message": "已保存(本项目配置以面板设置页为准)"})
+}
+
+func qlWebScriptList(c *gin.Context) {
+	qlScriptList(c)
+}
+
+func qlWebScriptDetail(c *gin.Context) {
+	rel := strings.TrimPrefix(c.Param("path"), "/")
+	full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, rel, true)
+	if err != nil || full == "" {
+		qlFail(c, 403, 403, "脚本访问受限")
+		return
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		qlFail(c, 404, 404, "脚本不存在")
+		return
+	}
+	qlSuccess(c, gin.H{"content": string(b)})
+}
+
+func qlWebScriptSave(c *gin.Context) {
+	var req struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
+		qlFail(c, 400, 400, "path 必填")
+		return
+	}
+	if len(req.Content) > maxScriptSize {
+		qlFail(c, 400, 400, "脚本内容过大")
+		return
+	}
+	full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, req.Path, false)
+	if err != nil || full == "" {
+		qlFail(c, 403, 403, "脚本路径受限")
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		qlFail(c, 500, 500, err.Error())
+		return
+	}
+	if err := os.WriteFile(full, []byte(req.Content), 0o644); err != nil {
+		qlFail(c, 500, 500, err.Error())
+		return
+	}
+	recordAudit(c, model.AuditActionScriptSave, req.Path, "")
+	qlSuccess(c, gin.H{"message": "保存成功"})
+}
+
+func qlWebScriptBatchDelete(c *gin.Context) {
+	var req struct {
+		Paths []string `json:"paths"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Paths) == 0 {
+		qlFail(c, 400, 400, "缺少 paths 数组")
+		return
+	}
+	deleted := 0
+	for _, p := range req.Paths {
+		full, err := pathutil.SafeJoin(config.C.Data.ScriptsDir, p, false)
+		if err != nil || full == "" {
+			continue
+		}
+		if err := os.RemoveAll(full); err == nil {
+			deleted++
+		}
+	}
+	recordAudit(c, model.AuditActionScriptDelete, fmt.Sprintf("scripts:%v", req.Paths), "")
+	qlSuccess(c, gin.H{"message": "已删除", "deleted": deleted})
+}
+
+func qlWebDepList(c *gin.Context)   { qlSuccess(c, []interface{}{}) }
+func qlWebDepCreate(c *gin.Context) { qlSuccess(c, []interface{}{}) }
+func qlWebDepBatchDelete(c *gin.Context) {
+	qlSuccess(c, gin.H{"message": "已删除"})
+}
+
+func qlWebAppList(c *gin.Context) {
+	qlSuccess(c, qlAppDicts(service.NewOpenAPIService().List()))
+}
+
+func qlAppDicts(list []map[string]interface{}) []map[string]interface{} {
+	out := make([]map[string]interface{}, len(list))
+	for i, a := range list {
+		out[i] = map[string]interface{}{
+			"id":           a["id"],
+			"name":         a["name"],
+			"clientId":     a["client_id"],
+			"clientSecret": a["client_secret"],
+			"scopes":       a["scopes"],
+			"status":       boolToInt(a["enabled"].(bool)),
+			"createdAt":    a["created_at"],
+		}
+	}
+	return out
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 0
+	}
+	return 1
+}
+
+func qlWebAppCreate(c *gin.Context)     { qlAppCreate(c) }
+func qlWebAppUpdate(c *gin.Context)     { qlAppUpdate(c) }
+func qlWebAppBatchDelete(c *gin.Context) {
+	qlAppBatchDelete(c)
+}
+func qlWebAppResetSecret(c *gin.Context) { qlAppResetSecret(c) }
+
+func qlWebNotifyList(c *gin.Context) {
+	list := service.GetNotifyService().List()
+	out := make([]map[string]interface{}, len(list))
+	for i, ch := range list {
+		id, _ := ch["id"].(uint)
+		name, _ := ch["name"].(string)
+		typ, _ := ch["type"].(string)
+		enabled, _ := ch["enabled"].(bool)
+		out[i] = map[string]interface{}{
+			"id": id, "name": name, "type": typ, "remark": "", "status": boolToInt(enabled),
+		}
+	}
+	qlSuccess(c, out)
+}
+
+func qlWebNotifyCreate(c *gin.Context) {
+	qlSuccess(c, gin.H{"message": "请在本项目「系统管理-通知渠道」中配置"})
+}
+
+func qlWebSubList(c *gin.Context) { qlSuccess(c, []interface{}{}) }
+
+// qlWebActivities 面板操作记录(映射审计日志)
+func qlWebActivities(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	logs, total := service.NewAuditService().List("", "", page, size)
+	out := make([]map[string]interface{}, len(logs))
+	for i, l := range logs {
+		out[i] = map[string]interface{}{
+			"id":      l.ID,
+			"type":    l.Action,
+			"log":     l.Detail,
+			"created": unixT(l.CreatedAt),
+		}
+	}
+	qlSuccess(c, gin.H{"data": out, "total": total})
+}
+
+// RegisterQinglongWebCompat 注册青龙前端 API(/api/* 登录态)。
+func RegisterQinglongWebCompat(engine *gin.Engine) {
+	engine.POST("/api/user/login", qlWebLogin)
+
+	api := engine.Group("/api", middleware.JWTAuth())
+	{
+		api.GET("/user", qlWebUser)
+
+		api.GET("/crons", qlWebCronList)
+		api.POST("/crons", qlWebCronCreate)
+		api.PUT("/crons", qlWebCronUpdate)
+		api.DELETE("/crons", qlWebCronBatchDelete)
+		api.PUT("/crons/:id/run", qlWebCronRun)
+		api.PUT("/crons/:id/stop", qlWebCronStop)
+		api.PUT("/crons/:id/enable", qlWebCronEnable)
+		api.PUT("/crons/:id/disable", qlWebCronDisable)
+
+		api.GET("/envs", qlWebEnvList)
+		api.POST("/envs", qlWebEnvCreate)
+		api.PUT("/envs", qlWebEnvUpdate)
+		api.DELETE("/envs", qlWebEnvBatchDelete)
+		api.PUT("/envs/enable", qlWebEnvToggle(true))
+		api.PUT("/envs/disable", qlWebEnvToggle(false))
+
+		api.GET("/logs", qlWebLogList)
+		api.GET("/logs/:id", qlWebLogDetail)
+		api.GET("/logs/:id/file", qlWebLogFile)
+
+		api.GET("/system", qlWebSystem)
+		api.GET("/system/config", qlWebSystemConfig)
+
+		api.GET("/configs", qlWebConfigList)
+		api.GET("/configs/sample", qlWebConfigSample)
+		api.POST("/configs/save", qlWebConfigSave)
+
+		api.GET("/scripts", qlWebScriptList)
+		api.GET("/scripts/*path", qlWebScriptDetail)
+		api.PUT("/scripts", qlWebScriptSave)
+		api.DELETE("/scripts", qlWebScriptBatchDelete)
+
+		api.GET("/dependencies", qlWebDepList)
+		api.POST("/dependencies", qlWebDepCreate)
+		api.DELETE("/dependencies", qlWebDepBatchDelete)
+
+		api.GET("/apps", qlWebAppList)
+		api.POST("/apps", qlWebAppCreate)
+		api.PUT("/apps", qlWebAppUpdate)
+		api.DELETE("/apps", qlWebAppBatchDelete)
+		api.PUT("/apps/:id/reset-secret", qlWebAppResetSecret)
+
+		api.GET("/notifies", qlWebNotifyList)
+		api.POST("/notifies", qlWebNotifyCreate)
+
+		api.GET("/subscriptions", qlWebSubList)
+		api.GET("/activities", qlWebActivities)
+	}
+}
+
+
