@@ -11,8 +11,8 @@
       <el-menu :default-active="route.path" router class="menu">
         <el-menu-item index="/dashboard"><el-icon><Monitor /></el-icon><span>仪表板</span></el-menu-item>
         <el-menu-item index="/tasks"><el-icon><Timer /></el-icon><span>定时任务</span></el-menu-item>
-        <el-menu-item index="/scripts"><el-icon><Document /></el-icon><span>脚本管理</span></el-menu-item>
         <el-menu-item index="/envs"><el-icon><Key /></el-icon><span>环境变量</span></el-menu-item>
+        <el-menu-item index="/scripts"><el-icon><Document /></el-icon><span>脚本管理</span></el-menu-item>
         <el-menu-item index="/logs"><el-icon><List /></el-icon><span>执行日志</span></el-menu-item>
         <el-menu-item index="/deps"><el-icon><Box /></el-icon><span>依赖管理</span></el-menu-item>
         <el-menu-item index="/openapi"><el-icon><Connection /></el-icon><span>开放接口</span></el-menu-item>

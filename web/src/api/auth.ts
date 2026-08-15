@@ -14,4 +14,6 @@ export const authApi = {
     request.post('/auth/totp/enable', { secret, code }),
   totpDisable: (password: string) =>
     request.post('/auth/totp/disable', { password }),
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request.post('/auth/password', { old_password: oldPassword, new_password: newPassword }),
 }

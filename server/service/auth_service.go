@@ -165,3 +165,22 @@ func recordFailedLogin(ip, username string) int {
 func clearLoginAttempts(ip, username string) {
 	ClearLoginAttempts(ip, username)
 }
+
+// ChangePassword 修改密码:校验旧密码,更新新密码(bcrypt)。
+func (s *AuthService) ChangePassword(username, oldPassword, newPassword string) error {
+	var user model.User
+	if err := database.DB.Where("username = ?", validator.SanitizeString(username)).First(&user).Error; err != nil {
+		return ErrUserNotFound
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)) != nil {
+		return ErrInvalidPassword
+	}
+	if !validator.ValidatePassword(newPassword) {
+		return ErrPasswordTooShort
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return database.DB.Model(&user).Update("password", string(hash)).Error
+}

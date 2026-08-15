@@ -34,12 +34,31 @@
       </template>
     </template>
   </el-card>
+
+  <el-card shadow="never" class="card">
+    <template #header><span>修改密码</span></template>
+    <el-form label-width="90px" style="max-width:400px">
+      <el-form-item label="当前密码">
+        <el-input v-model="pwdForm.oldPassword" type="password" show-password placeholder="输入当前密码" />
+      </el-form-item>
+      <el-form-item label="新密码">
+        <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="6-128 位" />
+      </el-form-item>
+      <el-form-item label="确认新密码">
+        <el-input v-model="pwdForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" :loading="changing" @click="onChangePassword">修改密码</el-button>
+      </el-form-item>
+    </el-form>
+  </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import QRCode from 'qrcode'
+import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 
 const enabled = ref(false)
@@ -50,6 +69,9 @@ const disablePassword = ref('')
 const setting = ref(false)
 const enabling = ref(false)
 const disabling = ref(false)
+const router = useRouter()
+const changing = ref(false)
+const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 async function loadStatus() {
   try {
@@ -105,10 +127,27 @@ async function copy(text: string) {
   } catch { ElMessage.warning('复制失败,请手动复制') }
 }
 
+async function onChangePassword() {
+  const f = pwdForm.value
+  if (!f.oldPassword || !f.newPassword) return ElMessage.warning('请填写完整')
+  if (f.newPassword.length < 6) return ElMessage.warning('新密码至少 6 位')
+  if (f.newPassword !== f.confirmPassword) return ElMessage.warning('两次输入的新密码不一致')
+  changing.value = true
+  try {
+    await authApi.changePassword(f.oldPassword, f.newPassword)
+    ElMessage.success('密码已修改,请重新登录')
+    await authApi.logout()
+    router.push('/login')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '修改失败')
+  } finally { changing.value = false }
+}
+
 onMounted(loadStatus)
 </script>
 
 <style scoped>
+.card { margin-bottom: 16px; }
 .qr-wrap { margin: 8px 0 10px; }
 .secret-line { color: #606266; font-size: 13px; }
 .secret-line code { background: #f0f2f5; padding: 2px 6px; border-radius: 3px; }

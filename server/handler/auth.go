@@ -156,6 +156,29 @@ func (h *AuthHandler) TOTPDisable(c *gin.Context) {
 	response.Success(c, gin.H{"message": "已关闭双重认证"})
 }
 
+// ChangePassword POST /auth/password {old_password, new_password} 修改密码并吊销当前令牌。
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	username, _ := c.Get("username")
+	var req struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误")
+		return
+	}
+	if err := h.svc.ChangePassword(username.(string), req.OldPassword, req.NewPassword); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	// 吊销当前令牌,强制重新登录
+	if jti, ok := c.Get("jti"); ok {
+		middleware.BlockToken(jti.(string))
+	}
+	recordAudit(c, model.AuditActionChangePassword, "auth", "")
+	response.Success(c, gin.H{"message": "密码已修改,请重新登录"})
+}
+
 // TOTPStatus GET /auth/totp/status 返回是否已启用 2FA。
 func (h *AuthHandler) TOTPStatus(c *gin.Context) {
 	username, _ := c.Get("username")
@@ -170,6 +193,7 @@ func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
 		auth.POST("/login", h.loginLimiter, h.Login)
 		auth.POST("/logout", middleware.JWTAuth(), h.Logout)
 		auth.GET("/user", middleware.JWTAuth(), h.GetUser)
+		auth.POST("/password", middleware.JWTAuth(), h.ChangePassword)
 		totpGroup := auth.Group("/totp", middleware.JWTAuth())
 		{
 			totpGroup.GET("/setup", h.TOTPSetup)
